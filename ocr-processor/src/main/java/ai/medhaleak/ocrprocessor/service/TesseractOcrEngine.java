@@ -16,6 +16,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.xml.sax.SAXException;
 
+import javax.imageio.ImageIO;
+import java.awt.Color;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -95,27 +99,103 @@ public class TesseractOcrEngine implements OcrEngine {
     }
 
     private String extractImage(byte[] fileBytes, String mimeType) throws OcrExtractionException {
+        try {
+            return doExtractImage(fileBytes, mimeType, false);
+        } catch (Exception primaryEx) {
+            log.warn("Direct OCR extraction failed for mimeType={}, trying ImageIO normalized PNG: {}",
+                    mimeType, primaryEx.getMessage());
+            try {
+                return doExtractImage(fileBytes, mimeType, true);
+            } catch (Exception normEx) {
+                log.warn("Normalized OCR extraction failed, falling back to Tika parser: {}", normEx.getMessage());
+                try {
+                    return parseWithTika(fileBytes, true);
+                } catch (Exception tikaEx) {
+                    log.error("All OCR extraction strategies failed for mimeType={}", mimeType, tikaEx);
+                    throw new OcrExtractionException("OCR extraction failed", primaryEx);
+                }
+            }
+        }
+    }
+
+    private String doExtractImage(byte[] fileBytes, String mimeType, boolean normalizeRgb) throws Exception {
         Path input = null;
         Path processed = null;
         try {
-            input = Files.createTempFile("ocr-in-", suffixFor(mimeType));
-            Files.write(input, fileBytes);
+            if (normalizeRgb) {
+                input = normalizeToRgbPng(fileBytes);
+            }
+            if (input == null) {
+                input = Files.createTempFile("ocr-in-", suffixFor(mimeType));
+                Files.write(input, fileBytes);
+            }
             processed = preprocess(input);
             Path source = processed != null ? processed : input;
-            // Sparse layout (posters, slides) and a normal page. Keep the pass
-            // whose confident words add up to more real text, not the longer raw dump.
-            String sparse = readableFromTsv(runTesseract(source, "11", "tsv"));
-            String page = readableFromTsv(runTesseract(source, "3", "tsv"));
-            return letterCount(page) >= letterCount(sparse) ? page : sparse;
-        } catch (IOException | InterruptedException e) {
-            if (e instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
+
+            String page = null;
+            try {
+                page = readableFromTsv(runTesseract(source, "3", "tsv"));
+            } catch (Exception ex) {
+                log.debug("Tesseract PSM 3 TSV failed: {}", ex.getMessage());
             }
-            log.error("Tesseract OCR failed for mimeType={}", mimeType, e);
-            throw new OcrExtractionException("OCR extraction failed", e);
+
+            String sparse = null;
+            try {
+                sparse = readableFromTsv(runTesseract(source, "11", "tsv"));
+            } catch (Exception ex) {
+                log.debug("Tesseract PSM 11 TSV failed: {}", ex.getMessage());
+            }
+
+            if (page != null || sparse != null) {
+                if (page == null) return sparse;
+                if (sparse == null) return page;
+                return letterCount(page) >= letterCount(sparse) ? page : sparse;
+            }
+
+            // Fallback to standard non-TSV text extraction if TSV segmentation failed
+            try {
+                String plain = runTesseract(source, "3", null);
+                if (plain != null && !plain.isBlank()) {
+                    return plain.trim();
+                }
+            } catch (Exception ex) {
+                log.debug("Tesseract PSM 3 plain text failed: {}", ex.getMessage());
+            }
+
+            try {
+                String plain6 = runTesseract(source, "6", null);
+                if (plain6 != null && !plain6.isBlank()) {
+                    return plain6.trim();
+                }
+            } catch (Exception ex) {
+                log.debug("Tesseract PSM 6 plain text failed: {}", ex.getMessage());
+            }
+
+            return "";
         } finally {
             deleteQuietly(processed);
             deleteQuietly(input);
+        }
+    }
+
+    private static Path normalizeToRgbPng(byte[] fileBytes) {
+        try {
+            BufferedImage img = ImageIO.read(new ByteArrayInputStream(fileBytes));
+            if (img == null) {
+                return null;
+            }
+            BufferedImage rgb = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = rgb.createGraphics();
+            g.setColor(Color.WHITE);
+            g.fillRect(0, 0, rgb.getWidth(), rgb.getHeight());
+            g.drawImage(img, 0, 0, null);
+            g.dispose();
+            Path out = Files.createTempFile("ocr-norm-", ".png");
+            ImageIO.write(rgb, "png", out.toFile());
+            return out;
+        } catch (Exception e) {
+            log.debug("Image normalization skipped: {}", e.getMessage());
+            return null;
         }
     }
 
@@ -222,12 +302,14 @@ public class TesseractOcrEngine implements OcrEngine {
             throws IOException, InterruptedException {
         List<String> command = new ArrayList<>();
         command.add(tesseractBinary.toString());
-        command.add(image.toString());
+        command.add(image.toAbsolutePath().normalize().toString());
         command.add("stdout");
         command.add("-l");
         command.add(language);
-        command.add("--psm");
-        command.add(pageSegMode);
+        if (pageSegMode != null && !pageSegMode.isBlank()) {
+            command.add("--psm");
+            command.add(pageSegMode);
+        }
         if (tessdataPath != null) {
             command.add("--tessdata-dir");
             command.add(tessdataPath);
@@ -236,15 +318,20 @@ public class TesseractOcrEngine implements OcrEngine {
             command.add(outputFormat);
         }
         Process process = new ProcessBuilder(command)
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.PIPE)
                 .start();
         String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
         if (!process.waitFor(OCR_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
             process.destroyForcibly();
-            throw new IOException("tesseract timed out");
+            throw new IOException("tesseract timed out: " + stderr);
         }
         if (process.exitValue() != 0) {
-            throw new IOException("tesseract exited with status " + process.exitValue());
+            if (output != null && !output.isBlank()) {
+                log.warn("Tesseract exited with status {} but produced output: {}", process.exitValue(), stderr.trim());
+                return output;
+            }
+            throw new IOException("tesseract exited with status " + process.exitValue() + ": " + stderr.trim());
         }
         return output == null ? "" : output;
     }
@@ -284,11 +371,17 @@ public class TesseractOcrEngine implements OcrEngine {
     }
 
     private static String suffixFor(String mimeType) {
-        return switch (mimeType) {
-            case "image/png" -> ".png";
-            case "image/jpeg" -> ".jpg";
-            case "image/tiff" -> ".tif";
-            default -> ".img";
+        if (mimeType == null) {
+            return ".png";
+        }
+        return switch (mimeType.toLowerCase(Locale.ROOT)) {
+            case "image/png", "image/x-png" -> ".png";
+            case "image/jpeg", "image/jpg", "image/pjpeg" -> ".jpg";
+            case "image/tiff", "image/x-tiff" -> ".tif";
+            case "image/bmp", "image/x-ms-bmp" -> ".bmp";
+            case "image/gif" -> ".gif";
+            case "image/webp" -> ".webp";
+            default -> ".png";
         };
     }
 

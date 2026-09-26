@@ -12,10 +12,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends maven \
 # ─── Stage 2: Runtime Environment for Hugging Face Spaces ────────────────────
 FROM eclipse-temurin:21-jdk-jammy
 
-# Install Tesseract OCR, English data, PostgreSQL server, Maven, Python, and utilities
+# Install Tesseract OCR, English data, PostgreSQL server, Maven, Python, ImageMagick, and utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr \
     tesseract-ocr-eng \
+    imagemagick \
     postgresql \
     postgresql-contrib \
     maven \
