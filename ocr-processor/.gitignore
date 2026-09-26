@@ -1,0 +1,126 @@
+# ==============================================================================
+# Java & Maven
+# ==============================================================================
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+*.zip
+*.tar.gz
+*.rar
+
+# Maven release plugin & backups
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# ==============================================================================
+# Application Runtime & Logs
+# ==============================================================================
+logs/
+*.log
+*.pid
+*.seed
+*.pid.lock
+app.pid
+
+# ==============================================================================
+# Environment Configuration & Secrets
+# ==============================================================================
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!*.env.example
+
+# ==============================================================================
+# Python / Pytest / Selenium (E2E & Regression Suites)
+# ==============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+tests/.venv/
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.tox/
+.nox/
+.mypy_cache/
+.ruff_cache/
+
+# Test screenshots and outputs
+test-screenshots/
+screenshots/
+*.png.tmp
+
+# ==============================================================================
+# IDEs and Editors
+# ==============================================================================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+
+# NetBeans
+/nbproject/private/
+/build/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# Visual Studio Code & Cursor
+.vscode/
+.cursor/
+*.code-workspace
+
+# Text editors & temporary files
+*.swp
+*.swo
+*~
+*.bak
+*.tmp
+
+# Office temporary files (locks)
+~$*
+
+# ==============================================================================
+# Operating System Files
+# ==============================================================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

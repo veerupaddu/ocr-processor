@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/><title th:text="${record.documentName} + ' – ocr-processor'"></title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<div th:replace="~{layout/base :: navbar}"></div>
+<div class="container">
+    <p><a th:href="@{/home}">← Back to Search</a></p>
+
+    <h1 th:text="${record.documentName}"></h1>
+    <p class="record-meta">
+        Uploaded: <span th:text="${#temporals.format(record.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+        &nbsp;·&nbsp; Status: <span class="badge"
+            th:classappend="'badge-' + ${record.status.toLowerCase()}"
+            th:text="${record.status}"></span>
+        &nbsp;·&nbsp; File: <span th:text="${record.fileType}"></span>
+        &nbsp;·&nbsp; <span th:text="${record.fileSizeBytes / 1024} + ' KB'"></span>
+    </p>
+
+    <section class="result-section">
+        <h2>Extracted Text</h2>
+        <pre class="text-preview" th:text="${record.extractedText ?: 'No text extracted'}"></pre>
+    </section>
+
+    <section class="result-section">
+        <h2>AI Summary</h2>
+        <p th:if="${record.summaryStatus == 'COMPLETE'}" th:text="${record.summary}"></p>
+        <p th:if="${record.summaryStatus == 'SKIPPED'}" class="muted">No text to summarise.</p>
+        <div th:if="${record.summaryStatus == 'FAILED'}">
+            <p class="alert alert-warning">Summary unavailable.</p>
+            <button onclick="retrySummary()" class="btn btn-secondary">Retry Summary</button>
+        </div>
+    </section>
+</div>
+<script th:inline="javascript">
+const recordId = /*[[${record.id}]]*/ '';
+function retrySummary() {
+    fetch(`/api/v1/ocr/${recordId}/retry-summary`, {method: 'POST'})
+        .then(r => r.json())
+        .then(() => location.reload());
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="sample" tests="2">
+    <testcase classname="ai.medhaleak.ocrprocessor.unit.service.JwtUtilTest" name="generateAndParse_roundtrip" time="0.042">
+        <system-out>EVIDENCE: parsed user id 11111111-1111-1111-1111-111111111111</system-out>
+    </testcase>
+    <testcase classname="e2e.test_auth.TestRegistration" name="test_register_success_redirects" time="1.5">
+        <failure message="expected login redirect">AssertionError: expected login redirect</failure>
+    </testcase>
+</testsuite>

@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/><title>Home – ocr-processor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css(v=21)}"/>
+</head>
+<body>
+<div th:replace="~{layout/base :: navbar}"></div>
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="search" onclick="switchTab('search')">🔍 Search</button>
+        <button class="tab-btn" data-tab="create" onclick="switchTab('create')">➕ Create</button>
+        <button class="tab-btn" data-tab="tests" onclick="switchTab('tests')">Tests</button>
+    </div>
+
+    <div id="tab-search" class="tab-content active">
+        <div th:replace="~{home/fragments/search :: search}"></div>
+    </div>
+    <div id="tab-create" class="tab-content" style="display:none">
+        <div th:replace="~{home/fragments/create :: create}"></div>
+    </div>
+    <div id="tab-tests" class="tab-content" style="display:none">
+        <div th:replace="~{home/fragments/tests :: tests}"></div>
+    </div>
+</div>
+<script th:src="@{/js/tabs.js(v=2)}"></script>
+<script th:src="@{/js/upload.js}"></script>
+<script th:src="@{/js/tests.js(v=17)}"></script>
+</body>
+</html>

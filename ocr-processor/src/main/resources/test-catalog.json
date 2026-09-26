@@ -1,0 +1,530 @@
+{
+  "suites": [
+    {
+      "id": "unit",
+      "title": "Unit",
+      "description": "One rule at a time. The database, HTTP, and the model are replaced with fakes, so a failure is in that rule.",
+      "cases": [
+        {
+          "id": "JwtUtilTest.generateAndParse_roundtrip",
+          "name": "JWT round trip",
+          "expected": "A generated token parses back to the same user id."
+        },
+        {
+          "id": "JwtUtilTest.parseToken_invalidToken_throwsJwtException",
+          "name": "Reject a garbage token",
+          "expected": "A token that is not a JWT is rejected."
+        },
+        {
+          "id": "JwtUtilTest.parseToken_tamperedToken_throwsJwtException",
+          "name": "Reject a tampered token",
+          "expected": "A token whose payload was edited is rejected."
+        },
+        {
+          "id": "JwtUtilTest.claims_containUsername",
+          "name": "Token carries the username",
+          "expected": "The username claim matches the user the token was issued for."
+        },
+        {
+          "id": "LlmServiceTest.summarise_success_returnsContent",
+          "name": "Summary returns model text",
+          "expected": "A successful model response is returned as the summary."
+        },
+        {
+          "id": "LlmServiceTest.summarise_truncatesLongInput",
+          "name": "Long text is truncated",
+          "expected": "Input past the configured limit is cut down before the model is called."
+        },
+        {
+          "id": "LlmServiceTest.summarise_emptyText_returnsEmpty",
+          "name": "Empty text skips the model",
+          "expected": "Blank input returns an empty summary and does not call the model."
+        },
+        {
+          "id": "LlmServiceTest.summarise_llmThrows_wrapsException",
+          "name": "Model errors are wrapped",
+          "expected": "A failure from the model is raised as LlmUnavailableException."
+        },
+        {
+          "id": "OcrServiceTest.processUpload_success_extractsAndSummarises",
+          "name": "Upload extracts and summarises",
+          "expected": "A supported file is stored as COMPLETE with extracted text and a summary."
+        },
+        {
+          "id": "OcrServiceTest.processUpload_ocrFails_setsStatusFailed",
+          "name": "OCR failure marks the record failed",
+          "expected": "When extraction throws, the record is FAILED and the model is not called."
+        },
+        {
+          "id": "OcrServiceTest.processUpload_llmFails_setsStatusFailed",
+          "name": "Summary failure keeps the text",
+          "expected": "When the model fails, extracted text is kept and the summary status is FAILED."
+        },
+        {
+          "id": "OcrServiceTest.processUpload_emptyText_skipsSummarisation",
+          "name": "Empty extraction skips summary",
+          "expected": "No extracted text means the model is skipped and the summary status is SKIPPED."
+        },
+        {
+          "id": "OcrServiceTest.processUpload_unsupportedType_throws",
+          "name": "Unsupported file type",
+          "expected": "A file type outside PDF and images is rejected before OCR."
+        },
+        {
+          "id": "OcrServiceTest.getById_notFound_throws",
+          "name": "Missing record",
+          "expected": "An unknown id raises a not-found error."
+        },
+        {
+          "id": "OcrServiceTest.retrySummary_onlyAllowedWhenFailed",
+          "name": "Retry only after a failed summary",
+          "expected": "Retry runs when the summary failed, and is refused otherwise."
+        },
+        {
+          "id": "UserServiceTest.register_success",
+          "name": "Register a user",
+          "expected": "A new user is stored with a hashed password."
+        },
+        {
+          "id": "UserServiceTest.register_throwsDuplicateUsername",
+          "name": "Reject a duplicate username",
+          "expected": "Registration fails when the username is already taken."
+        },
+        {
+          "id": "UserServiceTest.register_throwsDuplicateEmail",
+          "name": "Reject a duplicate email",
+          "expected": "Registration fails when the email is already registered."
+        },
+        {
+          "id": "UserServiceTest.register_throwsOnPasswordMismatch",
+          "name": "Reject mismatched passwords",
+          "expected": "Registration fails when the password and confirmation differ, and nothing is saved."
+        },
+        {
+          "id": "UserServiceTest.login_success_returnsToken",
+          "name": "Login returns a token",
+          "expected": "Valid credentials return a JWT and clear the failed-attempt count."
+        },
+        {
+          "id": "UserServiceTest.login_badPassword_incrementsAttempts",
+          "name": "Wrong password counts a failure",
+          "expected": "A wrong password is rejected and the failed-attempt count increases by one."
+        },
+        {
+          "id": "UserServiceTest.login_locksAccountAfterFiveAttempts",
+          "name": "Five failures lock the account",
+          "expected": "The fifth wrong password locks the account."
+        },
+        {
+          "id": "UserServiceTest.login_throwsAccountLockedWhenLockActive",
+          "name": "Locked account cannot log in",
+          "expected": "A login while the lock is active raises AccountLockedException."
+        },
+        {
+          "id": "UserServiceTest.login_unknownUser_throwsBadCredentials",
+          "name": "Unknown user",
+          "expected": "An unknown username is rejected as bad credentials."
+        },
+        {
+          "id": "UserServiceTest.changePassword_success",
+          "name": "Change password",
+          "expected": "The current password is checked and the stored hash is replaced."
+        },
+        {
+          "id": "UserServiceTest.changePassword_wrongCurrent_throws",
+          "name": "Wrong current password",
+          "expected": "A wrong current password is rejected and the hash stays the same."
+        },
+        {
+          "id": "UserServiceTest.changePassword_sameAsOld_throws",
+          "name": "New password must differ",
+          "expected": "A new password equal to the current one is rejected."
+        },
+        {
+          "id": "TesseractOcrEngineTest.extract_png_readsRenderedText",
+          "name": "Read a rendered PNG",
+          "expected": "Tesseract reads a PNG that contains the word HELLO."
+        },
+        {
+          "id": "TesseractOcrEngineReadabilityTest.readableFromTsv_dropsLowConfidenceNoise",
+          "name": "Drop low-confidence noise",
+          "expected": "TSV keeps the readable headline words and drops icon and background noise."
+        },
+        {
+          "id": "FailureSamplesTest.shortPassword_isAccepted",
+          "name": "Short password is accepted",
+          "expected": "A password shorter than 8 characters is rejected. Registration requires 8 to 128 characters."
+        },
+        {
+          "id": "FailureSamplesTest.docxUpload_isStored",
+          "name": "Docx upload is stored",
+          "expected": "A docx file is rejected. Uploads accept pdf, png, jpg, jpeg, and tiff."
+        },
+        {
+          "id": "FailureSamplesTest.retryWhileComplete_updatesSummary",
+          "name": "Retry while the summary is complete",
+          "expected": "Retry is refused unless the summary status is FAILED."
+        }
+      ]
+    },
+    {
+      "id": "integration",
+      "title": "Regression",
+      "description": "An existing flow through HTTP and a real database. A failure means a behavior that already worked has changed.",
+      "cases": [
+        {
+          "id": "ApplicationContextIT.contextLoads",
+          "name": "Application context starts",
+          "expected": "The Spring context starts against a Testcontainers PostgreSQL database."
+        },
+        {
+          "id": "AuthControllerIT.register_validRequest_redirectsToLogin",
+          "name": "Register redirects to login",
+          "expected": "A valid registration redirects the browser to the login page."
+        },
+        {
+          "id": "AuthControllerIT.register_duplicateUsername_returnsError",
+          "name": "Duplicate username shows an error",
+          "expected": "Registering the same username again renders an error and stays on the form."
+        },
+        {
+          "id": "AuthControllerIT.register_passwordMismatch_returnsValidationError",
+          "name": "Password mismatch shows an error",
+          "expected": "Mismatched passwords fail validation and the account is not created."
+        },
+        {
+          "id": "AuthControllerIT.register_shortPassword_returnsValidationError",
+          "name": "Short password shows an error",
+          "expected": "A password shorter than 8 characters fails validation."
+        },
+        {
+          "id": "AuthControllerIT.login_validCredentials_setsJwtCookie",
+          "name": "Login sets the JWT cookie",
+          "expected": "Valid credentials set the auth cookie and redirect to home."
+        },
+        {
+          "id": "AuthControllerIT.login_invalidPassword_returnsError",
+          "name": "Invalid password shows an error",
+          "expected": "A wrong password returns the login page with an error."
+        },
+        {
+          "id": "AuthControllerIT.login_unknownUser_returnsError",
+          "name": "Unknown user shows an error",
+          "expected": "An unknown username returns the login page with an error."
+        },
+        {
+          "id": "AuthControllerIT.protectedRoute_withoutToken_redirectsToLogin",
+          "name": "Home requires a token",
+          "expected": "Opening home without a cookie redirects to login."
+        },
+        {
+          "id": "AuthControllerIT.logout_clearsCookie",
+          "name": "Logout clears the cookie",
+          "expected": "Logout removes the auth cookie so the next request is unauthenticated."
+        },
+        {
+          "id": "AuthControllerIT.changePassword_success",
+          "name": "Change password through the form",
+          "expected": "The signed-in user can replace their password with the current one."
+        },
+        {
+          "id": "AuthControllerIT.changePassword_wrongCurrentPassword_returnsError",
+          "name": "Wrong current password on the form",
+          "expected": "A wrong current password returns an error and the password stays unchanged."
+        },
+        {
+          "id": "OcrControllerIT.upload_validPng_returnsCreated",
+          "name": "Upload a PNG",
+          "expected": "Sign in, upload test.png as \"My Test Doc\", and check that the server returns HTTP 201 with a completed record, its extracted text, and its summary."
+        },
+        {
+          "id": "OcrControllerIT.upload_ocrFails_returnsFailed",
+          "name": "Upload when OCR fails",
+          "expected": "When the engine fails, the API returns a record whose status is FAILED."
+        },
+        {
+          "id": "OcrControllerIT.upload_unsupportedType_returnsBadRequest",
+          "name": "Reject an unsupported upload",
+          "expected": "An unsupported file type returns 400."
+        },
+        {
+          "id": "OcrControllerIT.upload_withoutAuth_redirectsToLogin",
+          "name": "Upload requires auth",
+          "expected": "An upload without a cookie is redirected to login."
+        },
+        {
+          "id": "OcrControllerIT.search_emptyQuery_returnsPagedResults",
+          "name": "Empty search returns the user's page",
+          "expected": "Search with an empty query returns that user's records as a page."
+        },
+        {
+          "id": "OcrControllerIT.search_withQuery_filtersResults",
+          "name": "Search filters by query",
+          "expected": "A query returns only records whose text matches."
+        },
+        {
+          "id": "OcrControllerIT.search_noResults_returnsEmptyPage",
+          "name": "Search with no match",
+          "expected": "A query that matches nothing returns an empty page."
+        },
+        {
+          "id": "OcrControllerIT.getById_existingRecord_returnsFullDetail",
+          "name": "Get a record by id",
+          "expected": "The owner receives the full record, including extracted text."
+        },
+        {
+          "id": "OcrControllerIT.getById_notFound_returns404",
+          "name": "Unknown record is 404",
+          "expected": "An id that does not exist returns 404."
+        },
+        {
+          "id": "OcrControllerIT.getById_otherUsersRecord_returns404",
+          "name": "Another user's record is hidden",
+          "expected": "A record owned by someone else returns 404."
+        },
+        {
+          "id": "OcrControllerIT.retrySummary_failedRecord_returnsUpdatedSummary",
+          "name": "Retry a failed summary",
+          "expected": "Retry on a failed summary returns the updated summary."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.searchByUser_emptyQuery_returnsAllRecords",
+          "name": "Repository empty query",
+          "expected": "An empty query returns all records for that user."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.searchByUser_matchingQuery_returnsFilteredResults",
+          "name": "Repository matching query",
+          "expected": "A matching query returns only the records that contain it."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.searchByUser_noMatch_returnsEmptyPage",
+          "name": "Repository no match",
+          "expected": "A query with no match returns an empty page."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.searchByUser_scopedToOwner_doesNotReturnOtherUsersRecords",
+          "name": "Repository owner scope",
+          "expected": "Search never returns another user's records."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.findByIdAndUserId_wrongUser_returnsEmpty",
+          "name": "Lookup by the wrong owner",
+          "expected": "Finding by id and a different user id returns empty."
+        },
+        {
+          "id": "OcrRecordRepositoryIT.searchByUser_pagination_worksCorrectly",
+          "name": "Repository pagination",
+          "expected": "Page size and page index split the user's records correctly."
+        }
+      ]
+    },
+    {
+      "id": "e2e",
+      "title": "End to end",
+      "description": "A person in the browser, or a call to this running server, from the action through to the result on screen.",
+      "cases": [
+        {
+          "id": "test_ui.test_home_without_login_redirects",
+          "name": "Selenium: home requires login",
+          "expected": "Opening /home with no cookie lands on the login page."
+        },
+        {
+          "id": "test_ui.test_register_reaches_login",
+          "name": "Selenium: register reaches login",
+          "expected": "Submitting a new account ends on the login page."
+        },
+        {
+          "id": "test_ui.test_login_invalid_password_shows_error",
+          "name": "Selenium: invalid password",
+          "expected": "A wrong password stays on login and shows an error."
+        },
+        {
+          "id": "test_ui.test_login_opens_home_tabs",
+          "name": "Selenium: login shows the home tabs",
+          "expected": "A valid login shows the Search, Create, and Tests tabs."
+        },
+        {
+          "id": "test_ui.test_upload_png_shows_extraction",
+          "name": "Selenium: upload a PNG",
+          "expected": "Uploading a HELLO image shows a completed extraction."
+        },
+        {
+          "id": "test_ui.test_search_panel_returns_results",
+          "name": "Selenium: search panel",
+          "expected": "Search renders either matching records or the empty state."
+        },
+        {
+          "id": "test_ui.test_logout_returns_to_login",
+          "name": "Selenium: logout",
+          "expected": "Logout returns the browser to the login page."
+        },
+        {
+          "id": "TestRegistration.test_register_success_redirects",
+          "name": "API: register succeeds",
+          "expected": "Registration returns 200 or a redirect to login."
+        },
+        {
+          "id": "TestRegistration.test_register_duplicate_username_shows_error",
+          "name": "API: duplicate username",
+          "expected": "A second registration with the same username mentions that it is already taken."
+        },
+        {
+          "id": "TestRegistration.test_register_duplicate_email_shows_error",
+          "name": "API: duplicate email",
+          "expected": "A second registration with the same email mentions that it is already registered."
+        },
+        {
+          "id": "TestRegistration.test_register_short_password_shows_error",
+          "name": "API: short password",
+          "expected": "A password shorter than 8 characters is rejected on the form."
+        },
+        {
+          "id": "TestRegistration.test_register_password_mismatch_shows_error",
+          "name": "API: password mismatch",
+          "expected": "Mismatched passwords are rejected on the form."
+        },
+        {
+          "id": "TestLogin.test_login_valid_credentials_sets_jwt_cookie",
+          "name": "API: login sets the cookie",
+          "expected": "Valid credentials set the JWT cookie."
+        },
+        {
+          "id": "TestLogin.test_login_invalid_password_returns_error",
+          "name": "API: invalid password",
+          "expected": "A wrong password returns an error and no cookie."
+        },
+        {
+          "id": "TestLogin.test_login_unknown_user_returns_error",
+          "name": "API: unknown user",
+          "expected": "An unknown username returns an error."
+        },
+        {
+          "id": "TestLogin.test_protected_route_without_token_redirects",
+          "name": "API: protected route",
+          "expected": "Home without a token redirects to login."
+        },
+        {
+          "id": "TestLogout.test_logout_clears_jwt_cookie",
+          "name": "API: logout clears the cookie",
+          "expected": "Logout clears the JWT cookie."
+        },
+        {
+          "id": "TestChangePassword.test_change_password_success",
+          "name": "API: change password",
+          "expected": "The current password can be replaced."
+        },
+        {
+          "id": "TestChangePassword.test_change_password_wrong_current",
+          "name": "API: wrong current password",
+          "expected": "A wrong current password is rejected."
+        },
+        {
+          "id": "TestChangePassword.test_change_password_mismatch_shows_error",
+          "name": "API: change-password mismatch",
+          "expected": "A confirmation that does not match is rejected."
+        },
+        {
+          "id": "TestChangePassword.test_change_password_too_short",
+          "name": "API: change-password too short",
+          "expected": "A new password shorter than 8 characters is rejected."
+        },
+        {
+          "id": "TestOcrUpload.test_upload_png_returns_created",
+          "name": "API: upload PNG",
+          "expected": "An authenticated PNG upload returns 201."
+        },
+        {
+          "id": "TestOcrUpload.test_upload_without_auth_rejected",
+          "name": "API: upload without auth",
+          "expected": "An upload without a cookie is rejected."
+        },
+        {
+          "id": "TestOcrUpload.test_upload_defaults_document_name_to_filename",
+          "name": "API: default document name",
+          "expected": "When no name is sent, the document name is the file name."
+        },
+        {
+          "id": "TestOcrUpload.test_upload_unsupported_type_returns_error",
+          "name": "API: unsupported upload",
+          "expected": "An unsupported file type returns an error."
+        },
+        {
+          "id": "TestOcrUpload.test_upload_record_has_expected_fields",
+          "name": "API: upload response fields",
+          "expected": "The created record includes id, status, and extracted text."
+        },
+        {
+          "id": "TestOcrUpload.test_uploaded_record_is_retrievable",
+          "name": "API: uploaded record can be fetched",
+          "expected": "The id from upload can be fetched by the same user."
+        },
+        {
+          "id": "TestOcrDetail.test_get_nonexistent_record_returns_404",
+          "name": "API: missing record",
+          "expected": "An unknown record id returns 404."
+        },
+        {
+          "id": "TestOcrDetail.test_other_users_record_not_accessible",
+          "name": "API: other user's record",
+          "expected": "Another user's record returns 404."
+        },
+        {
+          "id": "TestSearch.test_empty_query_returns_all_user_records",
+          "name": "API: empty search",
+          "expected": "An empty query returns the current user's records."
+        },
+        {
+          "id": "TestSearch.test_empty_query_result_has_required_fields",
+          "name": "API: search row fields",
+          "expected": "Each search row includes the document name, status, and a text preview."
+        },
+        {
+          "id": "TestSearch.test_no_match_returns_empty_content",
+          "name": "API: search with no match",
+          "expected": "A query that matches nothing returns an empty list."
+        },
+        {
+          "id": "TestSearch.test_pagination_size_respected",
+          "name": "API: search page size",
+          "expected": "The requested page size is respected."
+        },
+        {
+          "id": "TestSearch.test_search_without_auth_rejected",
+          "name": "API: search requires auth",
+          "expected": "Search without a cookie is rejected."
+        },
+        {
+          "id": "TestSearch.test_results_scoped_to_current_user",
+          "name": "API: search is scoped to the user",
+          "expected": "Search results do not include another user's documents."
+        },
+        {
+          "id": "TestSummary.test_summary_field_present_in_upload_response",
+          "name": "API: summary on upload",
+          "expected": "The upload response includes a summary field."
+        },
+        {
+          "id": "TestSummary.test_summary_field_present_in_detail",
+          "name": "API: summary on detail",
+          "expected": "The record detail includes a summary field."
+        },
+        {
+          "id": "TestSummary.test_retry_summary_on_non_failed_returns_409",
+          "name": "API: retry when summary did not fail",
+          "expected": "Retry on a record that is not failed returns 409."
+        },
+        {
+          "id": "TestSummary.test_retry_summary_unknown_record_returns_404",
+          "name": "API: retry unknown record",
+          "expected": "Retry for an unknown id returns 404."
+        },
+        {
+          "id": "TestSummary.test_retry_summary_other_users_record_returns_404",
+          "name": "API: retry another user's record",
+          "expected": "Retry for another user's record returns 404."
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+spring:
+  datasource:
+    url: jdbc:tc:postgresql:16:///ocrprocessor_test
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+  jpa:
+    show-sql: true
+  ai:
+    openai:
+      api-key: test-key
+    deepseek:
+      api-key: test-key
+
+app:
+  jwt:
+    secret: test-secret-key-that-is-long-enough-32chars!
+    expiry-hours: 1
+  ocr:
+    max-file-size-bytes: 20971520
+    allowed-types:
+      - application/pdf
+      - image/png
+      - image/jpeg
+      - image/tiff
+  llm:
+    max-input-chars: 10000
+    prompt-template: "Summarise: {extractedText}"
+  security:
+    max-login-attempts: 5
+    lockout-duration-minutes: 15

@@ -1,0 +1,59 @@
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="search">
+<div id="search-panel">
+    <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Search documents…" class="input-search"/>
+        <button onclick="doSearch()" class="btn btn-primary">Search</button>
+    </div>
+    <div id="search-results"></div>
+    <div id="search-pagination"></div>
+</div>
+<script>
+let currentPage = 0;
+function doSearch(page) {
+    page = page || 0;
+    currentPage = page;
+    const q = document.getElementById('searchInput').value;
+    fetch(`/api/v1/ocr/search?q=${encodeURIComponent(q)}&page=${page}&size=20`)
+        .then(r => r.json())
+        .then(data => renderResults(data));
+}
+function renderResults(data) {
+    const container = document.getElementById('search-results');
+    // Spring Data 3.x nests metadata under data.page; fall back to top-level for older shape
+    const meta = (data.page && typeof data.page === 'object') ? data.page : data;
+    const totalElements = meta.totalElements ?? 0;
+    const totalPages    = meta.totalPages   ?? 1;
+    const pageNumber    = meta.number       ?? currentPage;
+
+    if (!data.content || data.content.length === 0) {
+        container.innerHTML = '<p class="empty-state">No records found for your search.</p>';
+        document.getElementById('search-pagination').innerHTML = '';
+        return;
+    }
+    let html = `<p class="result-count">Showing ${totalElements} result${totalElements !== 1 ? 's' : ''}</p>`;
+    data.content.forEach(r => {
+        html += `<div class="result-card" onclick="location.href='/api/v1/ocr/detail/${r.id}'">
+            <div class="result-title">📄 ${r.documentName}</div>
+            <div class="result-meta">${new Date(r.createdAt).toLocaleDateString()} &nbsp; <span class="badge badge-${r.status.toLowerCase()}">${r.status}</span></div>
+            <div class="result-preview">${r.preview || ''}</div>
+        </div>`;
+    });
+    container.innerHTML = html;
+    renderPagination(pageNumber, totalPages);
+}
+function renderPagination(page, total) {
+    if (total <= 1) { document.getElementById('search-pagination').innerHTML = ''; return; }
+    let html = '<div class="pagination">';
+    if (page > 0) html += `<button onclick="doSearch(${page-1})">←</button>`;
+    html += ` Page ${page+1} of ${total} `;
+    if (page < total-1) html += `<button onclick="doSearch(${page+1})">→</button>`;
+    html += '</div>';
+    document.getElementById('search-pagination').innerHTML = html;
+}
+document.getElementById('searchInput').addEventListener('keypress', e => {
+    if (e.key === 'Enter') doSearch();
+});
+doSearch();
+</script>
+</th:block>
+

@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/ocrprocessor_test
+    username: test
+    password: test
+  jpa:
+    show-sql: true
+  ai:
+    openai:
+      api-key: test-key
+    deepseek:
+      api-key: test-key

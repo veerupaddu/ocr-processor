@@ -1,0 +1,100 @@
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="tests">
+<div id="test-console">
+    <div class="tabs suite-tabs" role="tablist">
+        <button type="button" class="tab-btn suite-tab active" data-suite="unit" role="tab">Unit</button>
+        <button type="button" class="tab-btn suite-tab" data-suite="integration" role="tab">Regression</button>
+        <button type="button" class="tab-btn suite-tab" data-suite="e2e" role="tab">End to end</button>
+        <button type="button" class="tab-btn suite-tab" data-suite="coverage" role="tab">Coverage</button>
+    </div>
+    <div id="suite-sections"></div>
+    <div id="coverage-panel" hidden>
+        <section class="cov-summary">
+            <div class="cov-summary-head">
+                <h2>38 of 52</h2>
+                <p>Acceptance criteria in REQ-001 through REQ-007.</p>
+            </div>
+            <div class="cov-stack" role="img" aria-label="73.1 percent of the acceptance criteria have a case. 26.9 percent stay open.">
+                <span class="seg seg-covered" style="flex: 38">73.1%</span>
+                <span class="seg seg-open" style="flex: 14">26.9%</span>
+            </div>
+            <ul class="cov-legend">
+                <li><span class="swatch seg-covered"></span><strong>73.1%</strong> Covered by a case</li>
+                <li><span class="swatch seg-open"></span><strong>26.9%</strong> Open, with the reason under each function</li>
+            </ul>
+        </section>
+        <section class="cov-bars" aria-label="Coverage by requirement">
+            <div class="cov-row tone-amber" style="--p: 66.7">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-001 · Registration</span>
+                    <span class="cov-pct">66.7%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 6 of 9.</span> The form, a successful redirect to login, a duplicate username, a duplicate email, a password shorter than 8 characters, and mismatched passwords.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> Invalid email: no case submits a malformed address. Bcrypt storage: registration cases check the redirect, and the unit case uses a fake encoder, so none read the stored hash or the cost factor of 12. Blank fields: no case leaves a required field empty. Trimming, <span class="cov-label">Alice</span> versus <span class="cov-label">alice</span>, and the length limits of 50, 254, and 128 characters have no case.</p>
+            </div>
+            <div class="cov-row tone-amber" style="--p: 62.5">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-002 · Login</span>
+                    <span class="cov-pct">62.5%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 5 of 8.</span> The login form, a redirect to home, the same “Invalid” message for a wrong password and an unknown user, a protected page without a cookie, and logout.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> Blank username or password: no case submits an empty login. JWT expiry: a case issues and reads a token, and none check the 8-hour expiry or an expired token. Lockout: the unit cases lock the account after 5 failures. None check the 15-minute window or the sentence “Account temporarily locked. Try again later.” The HTTP-only cookie flag has no case.</p>
+            </div>
+            <div class="cov-row tone-amber" style="--p: 71.4">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-003 · Change password</span>
+                    <span class="cov-pct">71.4%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 5 of 7.</span> A successful change, a wrong current password, a new password shorter than 8 characters, a mismatch, and a new password that matches the current one.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> The form itself: cases post the three fields, and none open the page to check it is shown. A signed-out visit: protected-route cases request home. None request the change-password page without a cookie.</p>
+            </div>
+            <div class="cov-row tone-green" style="--p: 80">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-004 · Home</span>
+                    <span class="cov-pct">80%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 4 of 5.</span> Search and Create on the home page, the Search panel, the Create panel, and logout back to login.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> The navbar name: logout is clicked in the browser suite. No case reads the welcome name.</p>
+            </div>
+            <div class="cov-row tone-amber" style="--p: 62.5">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-005 · Search</span>
+                    <span class="cov-pct">62.5%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 5 of 8.</span> The search box and button, result name, status, and upload date, an empty result, an empty query returning that user’s records, and a query that matches a stored document. Results stay on that user’s records.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> Two seconds: no case times a search, and none load 10,000 records. A page of 20: a case asks for 2 rows and gets 2. None create more than 20 records or check the page controls. Opening a result: the API returns the full text, summary, and filename. No browser case clicks a result. A 200-character preview, and a word that appears only in the summary, have no case.</p>
+            </div>
+            <div class="cov-row tone-green" style="--p: 87.5">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-006 · Upload and OCR</span>
+                    <span class="cov-pct">87.5%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 7 of 8.</span> The Create tab, a PNG upload with the extracted text on the same screen, an unsupported type, a failed OCR status, the filename as the default document name, and the stored fields.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> A file over 20 MB: no case uploads one, so the rejection sentence is unchecked. PDF and TIFF go through Tika, a different path from the PNG cases, and need local tessdata. The progress indicator is on the page, and no case checks it. An empty document skips the summary in the unit suite. The sentence “No text could be extracted from this document.” has no case. OCR is not timed against the 30-second bound. A missing Tesseract binary, a timeout, and an ImageMagick failure stay open because a timeout waits two minutes.</p>
+            </div>
+            <div class="cov-row tone-green" style="--p: 85.7">
+                <div class="cov-row-top">
+                    <span class="cov-name">REQ-007 · Summary</span>
+                    <span class="cov-pct">85.7%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Covered · 6 of 7.</span> A summary after non-empty text, storing that summary, a failed summary status when the model throws, truncation before the call, skipping the model when the text is empty, and retrying a failed summary.</p>
+                <p class="cov-detail"><span class="cov-label">Open.</span> The Retry button: the API retries a failed summary and refuses one that did not fail. No browser case shows the button. A live model call stays out of the suites because it spends the API key and the reply changes between calls. Truncation is tested with a 20-character limit, so a 10,000-character document is not sent.</p>
+            </div>
+            <div class="cov-row tone-slate" style="--p: 0">
+                <div class="cov-row-top">
+                    <span class="cov-name">Out of scope for v1</span>
+                    <span class="cov-pct">0%</span>
+                </div>
+                <div class="cov-track" aria-hidden="true"><span class="cov-fill"></span></div>
+                <p class="cov-detail"><span class="cov-label">Open.</span> Admin, multi-factor authentication, cloud file storage, an OCR language choice, batch upload, email notification, and password reset by email are outside this phase, so the suites have no cases for them.</p>
+            </div>
+        </section>
+    </div>
+</div>
+</th:block>

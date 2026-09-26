@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>ocr-processor</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}"/>
+</head>
+<body>
+<nav th:fragment="navbar" class="navbar">
+    <span class="navbar-brand">ocr-processor</span>
+    <div class="navbar-right" sec:authorize="isAuthenticated()">
+        <span>Welcome, <strong sec:authentication="details"></strong></span>
+        <a th:href="@{/profile/change-password}">Change Password</a>
+        <form th:action="@{/logout}" method="post" style="display:inline">
+            <button type="submit" class="btn-link">Logout</button>
+        </form>
+    </div>
+</nav>
+<div th:fragment="content"></div>
+<script th:src="@{/js/tabs.js}"></script>
+</body>
+</html>

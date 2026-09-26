@@ -1,0 +1,101 @@
+<th:block xmlns:th="http://www.thymeleaf.org" th:fragment="create">
+<div id="create-panel">
+    <div class="form-group">
+        <label for="documentName">Document Name</label>
+        <input type="text" id="documentName" placeholder="Leave blank to use filename" class="input-text"/>
+    </div>
+    <div id="drop-zone" class="drop-zone">
+        <p>Drag &amp; drop a file here, or <label for="fileInput" class="link">click to browse</label></p>
+        <p class="drop-hint">PDF · PNG · JPG · JPEG · TIFF &nbsp;(max 20 MB)</p>
+        <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg,.tiff" style="display:none"/>
+    </div>
+    <div id="selected-file" style="display:none" class="selected-file"></div>
+    <button id="uploadBtn" onclick="doUpload()" class="btn btn-primary" disabled>Upload &amp; Extract</button>
+    <div id="upload-progress" style="display:none" class="progress-bar">
+        <div class="progress-inner"></div>
+    </div>
+    <div id="upload-result" style="display:none" class="upload-result"></div>
+</div>
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('fileInput');
+let selectedFile = null;
+
+fileInput.addEventListener('change', () => selectFile(fileInput.files[0]));
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    selectFile(e.dataTransfer.files[0]);
+});
+
+function selectFile(file) {
+    selectedFile = file;
+    document.getElementById('selected-file').style.display = 'block';
+    document.getElementById('selected-file').textContent = `Selected: ${file.name} (${(file.size/1024).toFixed(1)} KB)`;
+    document.getElementById('uploadBtn').disabled = false;
+}
+
+function doUpload() {
+    if (!selectedFile) return;
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    const name = document.getElementById('documentName').value;
+    if (name) formData.append('documentName', name);
+
+    document.getElementById('uploadBtn').disabled = true;
+    document.getElementById('upload-progress').style.display = 'block';
+    document.getElementById('upload-result').style.display = 'none';
+
+    fetch('/api/v1/ocr/upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => renderResult(data))
+        .catch(() => renderError('Upload failed. Please try again.'));
+}
+
+function renderResult(data) {
+    document.getElementById('upload-progress').style.display = 'none';
+    const el = document.getElementById('upload-result');
+    el.style.display = 'block';
+    if (data.status === 'FAILED') {
+        el.innerHTML = '<div class="alert alert-error">OCR extraction failed. Please try again.</div>';
+        return;
+    }
+    el.innerHTML = `
+        <div class="alert alert-success">✓ Extraction complete &nbsp; <span class="badge badge-complete">COMPLETE</span></div>
+        <div class="result-section"><h3>Extracted Text</h3><pre class="text-preview">${escHtml(data.extractedText || '')}</pre></div>
+        <div class="result-section">
+            <h3>AI Summary</h3>
+            ${data.summaryStatus === 'FAILED'
+                ? `<div class="alert alert-warning">Summary unavailable. <button onclick="retrySummary('${data.id}')">Retry Summary</button></div>`
+                : data.summaryStatus === 'SKIPPED'
+                ? `<p class="muted">No text was extracted, so no summary was generated.</p>`
+                : `<p>${escHtml(data.summary || '')}</p>`}
+        </div>`;
+}
+
+function renderError(msg) {
+    document.getElementById('upload-progress').style.display = 'none';
+    const el = document.getElementById('upload-result');
+    el.style.display = 'block';
+    el.innerHTML = `<div class="alert alert-error">${msg}</div>`;
+    document.getElementById('uploadBtn').disabled = false;
+}
+
+function retrySummary(id) {
+    fetch(`/api/v1/ocr/${id}/retry-summary`, { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            const btn = document.querySelector(`button[onclick="retrySummary('${id}')"]`);
+            if (btn) btn.closest('.alert').outerHTML = `<p>${escHtml(data.summary || '')}</p>`;
+        });
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</th:block>
+
