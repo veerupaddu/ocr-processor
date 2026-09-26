@@ -17,8 +17,11 @@ STARTS = {}
 
 
 def pytest_addoption(parser):
-    parser.addoption("--base-url", default="http://localhost:8080",
-                     help="Base URL of the running ocr-processor app")
+    try:
+        parser.addoption("--base-url", default="http://localhost:8080",
+                         help="Base URL of the running ocr-processor app")
+    except ValueError:
+        pass
 
 
 def _case_id(nodeid):
