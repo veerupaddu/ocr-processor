@@ -203,6 +203,11 @@ public class TestConsoleService {
     private void runSuite(String suiteId) throws Exception {
         SuiteState state = states.get(suiteId);
         Path project = projectRoot();
+        if (!Files.exists(project.resolve("pom.xml")) && !"e2e".equals(suiteId)) {
+            state.status = "FAILED";
+            state.observation = "Source project directory with pom.xml was not found at " + project + ". Ensure project source files are mounted or present.";
+            return;
+        }
         Path reportPath = reportPath(project, suiteId);
         clearReports(project, suiteId);
         clearScreenshots(project, suiteId);
@@ -543,7 +548,7 @@ public class TestConsoleService {
                 return bin.toString();
             }
         }
-        for (String candidate : List.of("/opt/homebrew/bin/mvn", "/usr/local/bin/mvn")) {
+        for (String candidate : List.of("/usr/bin/mvn", "/usr/local/bin/mvn", "/opt/homebrew/bin/mvn")) {
             if (Files.isExecutable(Path.of(candidate))) {
                 return candidate;
             }
@@ -552,14 +557,25 @@ public class TestConsoleService {
     }
 
     static Path projectRoot() {
-        Path dir = Path.of(System.getProperty("user.dir")).toAbsolutePath();
-        while (dir != null) {
-            if (Files.exists(dir.resolve("pom.xml")) && Files.exists(dir.resolve("src/main/resources/test-catalog.json"))) {
-                return dir;
+        String envRoot = System.getenv("APP_PROJECT_ROOT");
+        if (envRoot != null && !envRoot.isBlank()) {
+            Path p = Path.of(envRoot).toAbsolutePath();
+            if (Files.isDirectory(p)) {
+                return p;
             }
-            dir = dir.getParent();
         }
-        throw new IllegalStateException("Could not find the ocr-processor project. Start the app from that directory.");
+        Path dir = Path.of(System.getProperty("user.dir", ".")).toAbsolutePath();
+        Path scan = dir;
+        while (scan != null) {
+            if (Files.exists(scan.resolve("pom.xml"))) {
+                return scan;
+            }
+            scan = scan.getParent();
+        }
+        if (Files.exists(dir.resolve("ocr-processor/pom.xml"))) {
+            return dir.resolve("ocr-processor").toAbsolutePath();
+        }
+        return dir;
     }
 
     private Catalog loadCatalog() {
@@ -600,6 +616,7 @@ public class TestConsoleService {
     }
 
     private Map<String, Object> suiteView(Catalog.Suite suite, SuiteState state) {
+        Path project = projectRoot();
         List<Map<String, Object>> cases = new ArrayList<>();
         int passed = 0;
         int failed = 0;
@@ -622,7 +639,7 @@ public class TestConsoleService {
             row.put("started", outcome == null ? "" : clock(outcome.startedAt));
             row.put("ended", outcome == null ? "" : clock(outcome.endedAt));
             row.put("observation", observation);
-            row.put("screenshot", outcome == null ? "" : screenshotUrl(projectRoot(), testCase.id()));
+            row.put("screenshot", outcome == null ? "" : screenshotUrl(project, testCase.id()));
             row.put("where", outcome == null ? "" : outcome.where);
             row.put("why", outcome == null ? "" : outcome.why);
             row.put("fix", outcome == null ? "" : outcome.fix);
@@ -699,7 +716,7 @@ public class TestConsoleService {
 
     /** PNG saved by a browser case, or null when this case has no screenshot. */
     public static Path screenshotFile(Path project, String caseId) {
-        if (caseId == null || !caseId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,180}")) {
+        if (project == null || caseId == null || !caseId.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,180}")) {
             return null;
         }
         Path dir = project.resolve("target/test-screenshots").normalize();
