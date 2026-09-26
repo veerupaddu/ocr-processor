@@ -23,7 +23,31 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     curl \
+    ca-certificates \
+    gnupg \
+    wget \
+    fonts-liberation \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libasound2 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Google Chrome for Selenium headless browser journeys (on amd64)
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+        wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+        && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+        && apt-get update && apt-get install -y --no-install-recommends google-chrome-stable \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 # Ensure PostgreSQL binaries are available in PATH across versions
 ENV PATH="/usr/lib/postgresql/16/bin:/usr/lib/postgresql/15/bin:/usr/lib/postgresql/14/bin:$PATH"
@@ -44,9 +68,9 @@ COPY --chown=user:user src ./src
 COPY --chown=user:user tests ./tests
 COPY --chown=user:user pytest.ini ./pytest.ini
 
-# Set up Python virtual environment for test runner
+# Set up Python virtual environment for test runner with all requirements (pytest, requests, selenium)
 RUN python3 -m venv /home/user/app/tests/.venv \
-    && /home/user/app/tests/.venv/bin/pip install --no-cache-dir pytest requests
+    && /home/user/app/tests/.venv/bin/pip install --no-cache-dir -r /home/user/app/tests/requirements.txt
 
 # Copy application JAR and entrypoint script
 COPY --chown=user:user --from=build /build/target/ocr-processor-*.jar app.jar

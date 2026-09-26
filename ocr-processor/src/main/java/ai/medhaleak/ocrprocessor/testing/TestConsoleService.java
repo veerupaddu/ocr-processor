@@ -454,7 +454,50 @@ public class TestConsoleService {
         String tests = requested == null
                 ? ("unit".equals(suiteId) ? UNIT_TESTS : INTEGRATION_TESTS)
                 : mavenTests(suiteId, requested);
-        return List.of(mavenBinary(), "-q", "test", "-Dtest=" + tests, "-DfailIfNoTests=false");
+        List<String> cmd = new ArrayList<>();
+        cmd.add(mavenBinary());
+        cmd.add("-q");
+        cmd.add("test");
+        cmd.add("-Dtest=" + tests);
+        cmd.add("-DfailIfNoTests=false");
+
+        if ("integration".equals(suiteId)) {
+            String testUrl = System.getenv("TEST_DATASOURCE_URL");
+            if (testUrl != null && !testUrl.isBlank()) {
+                cmd.add("-Dspring.datasource.url=" + testUrl);
+                cmd.add("-Dspring.datasource.driver-class-name=" + System.getenv().getOrDefault("TEST_DATASOURCE_DRIVER_CLASS_NAME", "org.postgresql.Driver"));
+                cmd.add("-Dspring.datasource.username=" + System.getenv().getOrDefault("TEST_DATASOURCE_USERNAME", "postgres"));
+                cmd.add("-Dspring.datasource.password=" + System.getenv().getOrDefault("TEST_DATASOURCE_PASSWORD", "postgres"));
+            } else if (!isDockerAvailable() && isLocalPostgresAvailable()) {
+                cmd.add("-Dspring.datasource.url=jdbc:postgresql://127.0.0.1:5432/ocrprocessor_test");
+                cmd.add("-Dspring.datasource.driver-class-name=org.postgresql.Driver");
+                cmd.add("-Dspring.datasource.username=postgres");
+                cmd.add("-Dspring.datasource.password=postgres");
+            }
+        }
+        return cmd;
+    }
+
+    private static boolean isDockerAvailable() {
+        String dockerHost = System.getenv("DOCKER_HOST");
+        if (dockerHost != null && !dockerHost.isBlank()) {
+            return true;
+        }
+        for (String socketPath : List.of("/var/run/docker.sock", "/Users/" + System.getProperty("user.name") + "/.docker/run/docker.sock")) {
+            if (Files.exists(Path.of(socketPath))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLocalPostgresAvailable() {
+        try (java.net.Socket s = new java.net.Socket()) {
+            s.connect(new java.net.InetSocketAddress("127.0.0.1", 5432), 400);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     public static String mavenTests(String suiteId, List<String> caseIds) {

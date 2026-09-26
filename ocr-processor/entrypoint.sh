@@ -34,13 +34,20 @@ else
         sleep 1
     done
 
-    # Ensure database exists
+    # Ensure main and test databases exist
     psql -h 127.0.0.1 -p 5432 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'ocrprocessor'" | grep -q 1 || \
         psql -h 127.0.0.1 -p 5432 -U postgres -c "CREATE DATABASE ocrprocessor;"
+    psql -h 127.0.0.1 -p 5432 -U postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'ocrprocessor_test'" | grep -q 1 || \
+        psql -h 127.0.0.1 -p 5432 -U postgres -c "CREATE DATABASE ocrprocessor_test;"
 
     export SPRING_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5432/ocrprocessor"
     export SPRING_DATASOURCE_USERNAME="postgres"
     export SPRING_DATASOURCE_PASSWORD="postgres"
+
+    export TEST_DATASOURCE_URL="jdbc:postgresql://127.0.0.1:5432/ocrprocessor_test"
+    export TEST_DATASOURCE_USERNAME="postgres"
+    export TEST_DATASOURCE_PASSWORD="postgres"
+    export TEST_DATASOURCE_DRIVER_CLASS_NAME="org.postgresql.Driver"
 fi
 
 # Ensure fallback JWT secret if not configured in Space Secrets
