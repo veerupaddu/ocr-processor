@@ -11,6 +11,7 @@ import io
 import uuid
 import requests
 import pytest
+from forms import form_post, login as forms_login, register as forms_register
 
 
 # ─── helpers ─────────────────────────────────────────────────────────────────
@@ -20,17 +21,11 @@ def _uid():
 
 
 def _register(base_url, username, email, password):
-    return requests.post(f"{base_url}/register", data={
-        "username": username, "email": email,
-        "password": password, "confirmPassword": password,
-    }, allow_redirects=False)
+    return forms_register(base_url, username, email, password)
 
 
 def _login(base_url, username, password):
-    resp = requests.post(f"{base_url}/login", data={
-        "username": username, "password": password,
-    }, allow_redirects=False)
-    return resp.cookies.get("jwt")
+    return forms_login(base_url, username, password)
 
 
 def _authed(base_url):
@@ -40,6 +35,7 @@ def _authed(base_url):
     password = "RegPass123!"
     _register(base_url, username, email, password)
     token = _login(base_url, username, password)
+    assert token, f"Login failed to return JWT cookie for {username}"
     s = requests.Session()
     s.cookies.set("jwt", token)
     return s, token
@@ -84,7 +80,7 @@ def test_reg_002_login_returns_jwt_cookie(base_url):
 
 
 def test_reg_002_invalid_login_rejected(base_url):
-    resp = requests.post(f"{base_url}/login", data={
+    resp = form_post(base_url, "/login", {
         "username": "nobody_" + _uid(), "password": "anything",
     })
     assert resp.status_code in (200, 401)
@@ -185,19 +181,16 @@ def test_reg_006_retry_unknown_record_404(base_url):
 # ─── REG-007: Change password ─────────────────────────────────────────────────
 
 def test_reg_007_change_password_wrong_current_rejected(base_url):
-    s, user = _authed(base_url)
-    # We need the original password — use a fresh user with known password
     uid = _uid()
     _register(base_url, f"cp_{uid}", f"cp_{uid}@example.com", "OldPass123!")
     token = _login(base_url, f"cp_{uid}", "OldPass123!")
-    sc = requests.Session()
-    sc.cookies.set("jwt", token)
+    assert token, "Login failed for change-password test user"
 
-    resp = sc.post(f"{base_url}/profile/change-password", data={
+    resp = form_post(base_url, "/profile/change-password", {
         "currentPassword": "WrongPassword!",
         "newPassword": "NewPass456!",
         "confirmPassword": "NewPass456!",
-    })
+    }, jwt=token)
     assert resp.status_code in (200, 401)
     if resp.status_code == 200:
         assert "incorrect" in resp.text.lower() or "wrong" in resp.text.lower()
