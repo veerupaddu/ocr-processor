@@ -28,6 +28,8 @@ rsync -av \
     --exclude="logs" \
     --exclude=".env" \
     --exclude=".pytest_cache" \
+    --exclude="__pycache__" \
+    --exclude="*.pyc" \
     --exclude="*.pid" \
     --exclude=".git" \
     "${SCRIPT_DIR}/ocr-processor/" "$DEPLOY_DIR/"
