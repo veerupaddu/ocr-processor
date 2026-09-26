@@ -28,6 +28,7 @@ rsync -av \
     --exclude="logs" \
     --exclude=".env" \
     --exclude=".pytest_cache" \
+    --exclude=".venv" \
     --exclude="__pycache__" \
     --exclude="*.pyc" \
     --exclude="*.pid" \
