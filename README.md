@@ -1,10 +1,13 @@
 # IBM Bob — In-App Automation Testing Platform
 
+[![CI](https://github.com/veerupaddu/ocr-processor/actions/workflows/ci.yml/badge.svg)](https://github.com/veerupaddu/ocr-processor/actions/workflows/ci.yml)
+[![Repository](https://img.shields.io/badge/GitHub-ocr--processor-blue)](https://github.com/veerupaddu/ocr-processor.git)
+
 An enterprise document intelligence application (`ocr-processor`) featuring an embedded, in-app automation test console that bridges the developer–QA gap with interactive test execution, real-time evidence capture, root-cause failure diagnostics, and requirements-phase traceability.
 
 Architected and developed across four structured engineering phases co-piloted with **IBM Bob**:
 1. **Phase 1: Requirements Engineering** — 7 functional user stories (`REQ-001` through `REQ-007`) with 52 acceptance criteria in EARS format.
-2. **Phase 2: System Architecture & ADRs** — 5 Architecture Decision Records covering Thymeleaf, Tesseract OCR, Spring AI, JWT cookie authentication, and PostgreSQL full-text search.
+2. **Phase 2: System Architecture & ADRs** — 5 Architecture Decision Records covering Thymeleaf, Tesseract OCR, Spring AI (DeepSeek & OpenAI), JWT cookie authentication, and PostgreSQL full-text search.
 3. **Phase 3: Technical Design** — Wireframes, responsive UI grids, database entity-relationship models, and sequence diagrams.
 4. **Phase 4: Implementation & Test Engineering** — Full-stack Spring Boot service with 101 automated test cases across three test tiers.
 
@@ -142,7 +145,7 @@ Connects automated test execution back to the original functional requirements:
    ```bash
    cd ocr-processor
    cp .env.example .env
-   # Update SPRING_DATASOURCE_URL, JWT_SECRET, and LLM_API_KEY as needed
+   # Set SPRING_DATASOURCE_URL, JWT_SECRET, and LLM_API_KEY (DeepSeek or OpenAI)
    ```
 
 2. **Start Database:**

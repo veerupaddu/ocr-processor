@@ -1,8 +1,8 @@
 # Technical Specification: ocr-processor
 
-> **Status:** 🟢 Approved  
+> **Status:** 🟢 Approved / Implemented  
 > **Phase:** 2 of 6  
-> **Last Updated:** 2025-07-14
+> **Last Updated:** 2026-09-27
 
 ---
 
@@ -223,6 +223,81 @@ Retry LLM summarisation for a record with `summaryStatus = FAILED`.
 
 ---
 
+### 2.4 Test Console Endpoints
+
+#### `GET /api/v1/tests` — Authenticated
+Returns execution state, timing, and triple-evidence cards across all test suites (`unit`, `integration`, `e2e`).
+
+**Response `200 OK`:**
+```json
+{
+  "suites": {
+    "unit": {
+      "status": "IDLE | RUNNING | PASSED | FAILED",
+      "observation": "string",
+      "cases": [
+        {
+          "id": "JwtUtilTest.generateAndParse_roundtrip",
+          "name": "Token Roundtrip",
+          "expected": "Generates valid JWT and parses claims successfully",
+          "status": "PASSED | FAILED | NOT_RUN | RUNNING",
+          "startedAt": "14:22:01",
+          "endedAt": "14:22:02",
+          "durationMs": 42,
+          "executed": "Generated JWT with subject and 8-hour expiry",
+          "validated": "Parsed subject matches original input",
+          "observed": "Subject matches",
+          "screenshotUrl": null,
+          "failureExplanation": null
+        }
+      ]
+    },
+    "integration": { "status": "...", "cases": [] },
+    "e2e": { "status": "...", "cases": [] }
+  }
+}
+```
+
+---
+
+#### `POST /api/v1/tests/{suite}/run` — Authenticated
+Triggers asynchronous execution of the requested suite (`unit`, `integration`, or `e2e`).
+
+**Path Variables:**
+- `suite`: `unit`, `integration`, or `e2e`
+
+**Request Body (Optional):**
+```json
+{
+  "cases": ["JwtUtilTest.generateAndParse_roundtrip", "FailureSamplesTest.intentionalContractMismatch"]
+}
+```
+*When omitted, executes all cases within the designated suite.*
+
+**Response `202 Accepted`:**
+Returns the updated suite snapshot with `status = "RUNNING"`.
+
+**Error Responses:**
+| Status | Condition |
+|---|---|
+| `400 Bad Request` | Unknown suite name or empty cases array |
+| `409 Conflict` | Another test suite execution is actively running |
+
+---
+
+#### `GET /api/v1/tests/screenshots/{caseId}` — Authenticated
+Delivers binary PNG screenshot captured by Selenium WebDriver during end-to-end browser execution.
+
+**Response `200 OK`:**
+- `Content-Type: image/png`
+
+**Error Responses:**
+| Status | Condition |
+|---|---|
+| `404 Not Found` | No screenshot recorded for the specified test case ID |
+
+---
+
 ## 3. Database Schema
 
 ```sql
@@ -334,6 +409,15 @@ public interface UserService {
 }
 ```
 
+### 4.5 TestConsoleService
+```java
+public interface TestConsoleService {
+    Map<String, Object> getAllSuitesSnapshot();
+    Map<String, Object> runSuite(String suiteName, List<String> caseIds);
+    byte[] getScreenshot(String caseId);
+}
+```
+
 ---
 
 ## 5. Configuration (`application.yml` skeleton)
@@ -354,15 +438,16 @@ spring:
       max-request-size: 21MB
   ai:
     openai:
-      api-key: ${LLM_API_KEY}
+      api-key:  ${LLM_API_KEY}
+      base-url: ${LLM_BASE_URL:https://api.openai.com}   # Supports DeepSeek OpenAI-compatible endpoint
       chat:
         options:
-          model:       gpt-4o-mini
+          model:       ${LLM_MODEL:gpt-4o-mini}          # e.g., deepseek-chat or gpt-4o-mini
           temperature: 0.3
 
 app:
   jwt:
-    secret:     ${JWT_SECRET}
+    secret:       ${JWT_SECRET}
     expiry-hours: 8
   ocr:
     max-file-size-bytes: 20971520   # 20 MB
@@ -397,31 +482,36 @@ app:
 
 ---
 
-## 7. Testing Strategy
+## 7. Testing Strategy & Test Console Architecture
 
-### Unit Tests (JUnit 5 + Mockito)
-- `UserServiceTest` — registration validation, password hashing, lockout logic
-- `OcrServiceTest` — file validation, status transitions, delegation to `OcrEngine` + `LlmService`
-- `LlmServiceTest` — truncation logic, prompt construction, error handling
-- `JwtUtilTest` — token generation, expiry, parsing
+The platform embeds 101 automated test cases accessible via CLI or the in-app Test Console:
 
-### Integration Tests (Spring Boot Test + Testcontainers)
-- `UserRepositoryTest` — uniqueness constraints, case-insensitive username
-- `OcrRecordRepositoryTest` — full-text search, pagination, user-scoped queries
-- `AuthControllerIT` — login/register/logout flows with real DB
-- `OcrControllerIT` — upload, search, detail, retry-summary with real DB + mocked `OcrEngine`/`LlmService`
+### 7.1 Unit Tests (32 Cases — JUnit 5 + Mockito)
+- `UserServiceTest` (10 cases): registration validation, bcrypt password hashing, account lockout thresholds
+- `OcrServiceTest` (10 cases): file type verification, status transitions, delegation to `OcrEngine` and `LlmService`
+- `LlmServiceTest` (4 cases): 10,000-character truncation logic, prompt construction, error resilience
+- `JwtUtilTest` (4 cases): token generation, expiry claims, tamper rejection, username claims extraction
+- `TesseractOcrEngineReadabilityTest` (1 case): real image rendering and Tesseract OCR text extraction
+- `FailureSamplesTest` (3 cases): intentional failure demonstrations illustrating root-cause diagnostics (assertion contract mismatch, unexpected error condition, bounds threshold check)
 
-### E2E Tests — Java (REST Assured)
-- Full login → upload → search → view-detail flow against running app
+### 7.2 Integration Tests (29 Cases — Spring Boot Test + Testcontainers)
+- `AuthControllerIT` (8 cases): complete HTTP lifecycle for register, login, lockout enforcement, password updates
+- `OcrControllerIT` (12 cases): authenticated upload, owner-isolated searches, summary retry, CSRF protections
+- `OcrRecordRepositoryIT` (6 cases): PostgreSQL TSVECTOR full-text search, pagination offsets, GIN index performance
+- `ApplicationContextIT` (3 cases): context loading, bean wiring, database migration integrity
 
-### E2E Tests — Python (pytest)
-- `test_auth.py` — register, login, change password, logout
-- `test_ocr.py` — upload file, verify extracted text returned, verify searchable
-- `test_search.py` — search with term, empty search, pagination
-- `test_summary.py` — verify summary generated, retry-summary on FAILED record
+### 7.3 End-to-End Tests (40 Cases — Selenium WebDriver + Python pytest)
+- `test_ui.py` (Selenium Chrome Headless): full browser journeys with screenshot capture (unauthenticated redirects, registration, login errors, three-tab navigation, PNG upload and text preview)
+- `test_auth.py` (pytest API): cookie authentication, session persistence, logout invalidation
+- `test_ocr.py` (pytest API): multipart file upload, synchronous text extraction, status verification
+- `test_search.py` (pytest API): query parameter filtering, pagination bounds, multi-user document isolation
+- `test_summary.py` (pytest API): automated summary validation, failure retry triggers
 
-### Regression Tests — Python (pytest)
-- Re-run all E2E scenarios after each deployment
+### 7.4 Triple-Fold Evidence Model
+Every executed test run captures:
+- **Executed:** exact input arguments, HTTP headers, payloads, and mock configurations
+- **Validated:** contracts asserted, HTTP response codes, and database state guarantees
+- **Observed:** actual server returns, database IDs, execution elapsed times, and captured screenshots
 
 ---
 
@@ -433,11 +523,14 @@ ai.medhaleak.ocrprocessor
 ├── config/
 │   ├── SecurityConfig.java          ← Spring Security + JWT filter registration
 │   ├── JwtProperties.java           ← @ConfigurationProperties for JWT
-│   └── AppProperties.java           ← @ConfigurationProperties for app.*
+│   ├── AppProperties.java           ← @ConfigurationProperties for app.*
+│   ├── JwtUtil.java                 ← JWT generation and claim extraction
+│   └── JwtAuthFilter.java           ← HTTP-only cookie filter
 ├── controller/
 │   ├── AuthController.java
 │   ├── HomeController.java
-│   └── OcrController.java
+│   ├── OcrController.java
+│   └── TestConsoleController.java   ← In-app test runner API (/api/v1/tests)
 ├── service/
 │   ├── UserService.java             ← interface
 │   ├── UserServiceImpl.java
@@ -446,7 +539,13 @@ ai.medhaleak.ocrprocessor
 │   ├── OcrEngine.java               ← interface
 │   ├── TesseractOcrEngine.java      ← implementation
 │   ├── LlmService.java              ← interface
-│   └── SpringAiLlmService.java      ← implementation
+│   ├── SpringAiLlmService.java      ← implementation
+│   ├── TestConsoleService.java      ← In-app test execution orchestrator
+│   └── TestProgressExtension.java   ← JUnit 5 execution listener
+├── testing/
+│   ├── EvidenceCard.java            ← Triple-fold evidence model
+│   ├── FailureExplanation.java      ← Root-cause failure diagnostics
+│   └── JunitXmlReport.java          ← Report parsing utilities
 ├── repository/
 │   ├── UserRepository.java
 │   └── OcrRecordRepository.java
@@ -462,6 +561,10 @@ ai.medhaleak.ocrprocessor
 └── exception/
     ├── OcrExtractionException.java
     ├── LlmUnavailableException.java
+    ├── DuplicateUsernameException.java
+    ├── UserNotFoundException.java
+    └── GlobalExceptionHandler.java
+```
     ├── DuplicateUsernameException.java
     ├── UserNotFoundException.java
     └── GlobalExceptionHandler.java

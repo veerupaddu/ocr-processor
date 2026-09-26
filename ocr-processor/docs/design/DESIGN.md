@@ -1,14 +1,14 @@
 # Design Document: ocr-processor
 
-> **Status:** 🟢 Approved  
+> **Status:** 🟢 Approved / Implemented  
 > **Phase:** 3 of 6  
-> **Last Updated:** 2025-07-14
+> **Last Updated:** 2026-09-27
 
 ---
 
 ## 1. Overview
 
-This document covers UI wireframes, page flows, sequence diagrams, component interactions, and detailed design decisions for all 7 requirements. It is the direct blueprint for Phase 4 implementation.
+This document covers UI wireframes, page flows, sequence diagrams, component interactions, and detailed design decisions for all application requirements. It serves as the visual and interaction blueprint for the system, including document extraction workflows and the embedded automation Test Console.
 
 ---
 
@@ -20,26 +20,27 @@ This document covers UI wireframes, page flows, sequence diagrams, component int
          │          └──────┬──────┘
          │     success     │
          │          ┌──────▼──────┐
-[Browser]────────►  │   /login    │◄──── all protected routes (unauthenticated)
+[Browser]────────►  │   /login    │◄──── unauthenticated redirects
                     └──────┬──────┘
                JWT cookie  │  success
-                    ┌──────▼──────────────────────────┐
-                    │            /home                │
-                    │  ┌──────────────┬─────────────┐ │
-                    │  │ Search Tab   │ Create Tab  │ │
-                    │  │  (default)   │             │ │
-                    │  └──────┬───────┴──────┬──────┘ │
-                    └─────────┼──────────────┼────────┘
-                              │              │
-                    ┌─────────▼──┐    ┌──────▼──────────┐
-                    │/ocr/{id}   │    │ Upload + Preview │
-                    │ Detail View│    │  (inline panel) │
-                    └────────────┘    └─────────────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │/profile/change-    │
-                    │  password          │
-                    └────────────────────┘
+                    ┌──────▼────────────────────────────────────────┐
+                    │                    /home                      │
+                    │  ┌──────────────┬─────────────┬─────────────┐ │
+                    │  │ Search Tab   │ Create Tab  │ Tests Tab   │ │
+                    │  │  (default)   │             │             │ │
+                    │  └──────┬───────┴──────┬──────┴──────┬──────┘ │
+                    └─────────┼──────────────┼─────────────┼────────┘
+                              │              │             │
+                    ┌─────────▼──┐    ┌──────▼──────────┐  │
+                    │/ocr/{id}   │    │ Upload + Preview│  │
+                    │ Detail View│    │  (inline panel) │  │
+                    └────────────┘    └─────────────────┘  │
+                              │                            │
+                    ┌─────────▼──────────┐        ┌────────▼──────────┐
+                    │/profile/change-    │        │ 101 Tests Runner  │
+                    │  password          │        │ Evidence Cards    │
+                    └────────────────────┘        │ Coverage Dashboard│
+                                                  └───────────────────┘
 ```
 
 ---
@@ -131,20 +132,20 @@ This document covers UI wireframes, page flows, sequence diagrams, component int
 │  ocr-processor        Welcome, alice          [Change Password] [Logout] │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────────────┐  ┌──────────────────┐                    │
-│  │  🔍 Search       │  │  ➕ Create        │                    │
-│  └──────────────────┘  └──────────────────┘                    │
-│  ══════════════════════════════════════════                     │
+│  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐│
+│  │  🔍 Search       │  │  ➕ Create        │  │  🧪 Tests        ││
+│  └──────────────────┘  └──────────────────┘  └──────────────────┘│
+│  ════════════════════════════════════════════════════════════════│
 │                                                                 │
-│  [Active tab content renders here — see 3.3a / 3.3b]           │
+│  [Active tab content renders here — see 3.3a / 3.3b / 3.3c]     │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 **Behaviour:**
 - Search tab active by default on page load
-- Tab switch updates URL hash (`#search` / `#create`) without full reload
-- Navbar always visible; username and action links shown
+- Tab switch updates URL hash (`#search` / `#create` / `#tests`) without full reload
+- Navbar always visible; username extracted from JWT token claims and action links shown
 
 ---
 
@@ -220,6 +221,46 @@ This document covers UI wireframes, page flows, sequence diagrams, component int
 - Progress spinner shown during upload + OCR (replaces button)
 - Preview panel animates in after completion
 - "Retry Summary" button shown if `summaryStatus = FAILED`
+
+---
+
+### 3.3c Tests Tab
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  🧪 Test Console (101 Automated Cases)                                 │
+│                                                                        │
+│  [ Unit (32) ]  [ Regression (29) ]  [ End to end (40) ] [ Coverage ]  │
+│                                                                        │
+│  Selected: 2 cases           [▶ Run Unit Tests]  [▶ Run Selected (2)]  │
+│                                                                        │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ ☑ │ #1 Token Roundtrip (JwtUtilTest.generateAndParse_roundtrip)   │  │
+│  │    Expected: Generates valid JWT and parses claims successfully   │  │
+│  │    Status: ✅ PASSED  ·  Started: 14:22:01  ·  Duration: 42ms     │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │    Executed:  Generated JWT token with subject and 8h duration    │  │
+│  │    Validated: Claims parsed from token match original subject     │  │
+│  │    Observed:  Claims verified                                     │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ ☑ │ #2 Contract Check (FailureSamplesTest.contractMismatch)      │  │
+│  │    Expected: Status code 200 returned from endpoint              │  │
+│  │    Status: ❌ FAILED  ·  Started: 14:22:03  ·  Duration: 18ms     │  │
+│  ├──────────────────────────────────────────────────────────────────┤  │
+│  │    Executed:  Dispatched HTTP GET request to sample endpoint      │  │
+│  │    Validated: Asserted status code equals 200                    │  │
+│  │    Observed:  Status code was 422 Unprocessable Entity            │  │
+│  │    [ 🔍 View Root Cause Failure Diagnostics ]                    │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Behaviour:**
+- The Tests tab organizes tests into 4 sub-tabs: Unit (32 cases), Regression (29 cases), End to end (40 cases), and Coverage (functional traceability)
+- Each case renders in an accessible two-row layout: Row 1 contains selection checkboxes, case name, expected result, status badge, and duration; Row 2 provides triple-fold evidence (Executed, Validated, Observed) and Selenium screenshots
+- Suites execute in background worker threads, polling every second without blocking UI interaction
+- Failed and error cases automatically sort to the top of the suite with interactive diagnostic modals
 
 ---
 
@@ -391,7 +432,7 @@ sequenceDiagram
     OcrService->>OcrRepo: update(status=COMPLETE, extractedText)
     OcrRepo->>DB: UPDATE (trigger updates search_vector)
 
-    alt extractedText not empty
+    alt extractedText contains content
         OcrService->>LlmService: summarise(extractedText)
         LlmService->>LlmService: truncate to 10,000 chars
         LlmService->>LLM: POST /v1/chat/completions

@@ -1,41 +1,40 @@
-# ADR-003: Use Spring AI with OpenAI adapter for LLM integration
+# ADR-003: Use Spring AI for Provider-Agnostic LLM Summarisation
 
 > **Status:** Accepted  
-> **Date:** 2025-07-14  
+> **Date:** 2026-09-27  
 > **Deciders:** Engineering team
 
 ## Context
 
-REQ-007 requires LLM summarisation of extracted OCR text. We need to choose an integration approach and a default provider. OQ-3 asks: OpenAI, Anthropic, or IBM watsonx?
-
-The system must be configurable so that the LLM provider can be changed without code changes.
+REQ-007 mandates automated summarisation of extracted OCR text. We required an integration model that supports modern foundation models (including DeepSeek and OpenAI) while isolating application services from provider-specific SDK lock-in.
 
 ## Options Considered
 
-**Option A: Spring AI (provider-agnostic abstraction)**
-- Pros: Single `ChatClient` abstraction; swap provider by changing `application.yml` and dependency; actively maintained by Spring team; supports OpenAI, Anthropic, Ollama, watsonx, and others
-- Cons: Relatively new library (1.0.x); may lag behind provider-specific SDKs on cutting-edge features
+**Option A: Spring AI (Provider-Agnostic Abstraction)**
+- Pros: Unified `ChatClient` abstraction; seamless provider switching via configuration properties; native Spring Boot auto-configuration; direct support for DeepSeek through OpenAI-compatible endpoints; supports local models (Ollama) and enterprise endpoints (watsonx)
+- Cons: Relies on Spring AI ecosystem release lifecycle
 - Effort: Low
 
-**Option B: OpenAI Java SDK (direct)**
-- Pros: Latest OpenAI features immediately available; well-documented
-- Cons: Tight coupling to OpenAI; switching providers requires code changes
-- Effort: Low (but future switching effort is High)
+**Option B: Direct Provider SDKs (OpenAI / DeepSeek SDKs)**
+- Pros: Provider-specific novel parameters available immediately
+- Cons: Tight architectural coupling to a single vendor; provider migrations require code refactoring
+- Effort: Medium
 
 **Option C: LangChain4j**
-- Pros: Feature-rich; many providers; agent/tool support
-- Cons: Heavier dependency; more complex than needed for simple summarisation
+- Pros: Rich multi-agent tooling and chaining
+- Cons: Additional heavyweight transitive dependencies for single-prompt document summarisation
 - Effort: Medium
 
 ## Decision
 
-**Option A — Spring AI** with the **OpenAI adapter** (`gpt-4o-mini`) as the default provider.
+**Option A — Spring AI**, leveraging the standard `ChatClient` with support for both **DeepSeek** and **OpenAI**:
 
-- API key via `LLM_API_KEY` environment variable
-- Prompt template configurable in `application.yml`
-- The `LlmService` interface hides Spring AI; swapping providers (e.g. to IBM watsonx) is a configuration-only change
+- Configured via environment variables: `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL`
+- Seamlessly connects to DeepSeek (`https://api.deepseek.com`, model `deepseek-chat`) or OpenAI (`https://api.openai.com`, model `gpt-4o-mini`) using the standard OpenAI chat protocol
+- Input text is safely bounded with a 10,000-character truncation ceiling
+- The application service layer interacts exclusively through the `LlmService` interface
 
-Default prompt:
+Default summarisation prompt:
 ```
 Summarise the following document text in 3–5 sentences. Be concise and factual.
 
@@ -45,13 +44,12 @@ Summarise the following document text in 3–5 sentences. Be concise and factual
 ## Consequences
 
 ### Positive
-- Provider-agnostic: IBM watsonx, Anthropic, or Ollama (local) can be enabled with a config change
-- Clean abstraction via `LlmService` interface keeps controllers and services unaware of the provider
-- Spring Boot auto-configuration reduces boilerplate
+- Provider flexibility: Switching between DeepSeek, OpenAI, Anthropic, or local Ollama instances is accomplished entirely via configuration
+- High testability: Mocking `LlmService` in unit tests enables reliable verification of business logic without external API costs
+- Robust resilience: Network and token issues trigger graceful degradation with `summaryStatus = FAILED` and one-click retry capabilities
 
 ### Negative
-- Spring AI 1.0.x is newer; some providers may have partial support
-- Token limits and pricing vary per provider; truncation at 10,000 characters is a conservative safety measure
+- Character truncation at 10,000 characters prioritizes prompt bounds over full document ingestion
 
 ### Neutral
-- Model name and temperature are configurable; defaults optimised for summarisation (temperature 0.3)
+- Temperature and sampling parameters are exposed in `application.yml` for domain fine-tuning

@@ -1,51 +1,46 @@
-# ADR-002: Use Tesseract + Apache Tika over cloud OCR API
+# ADR-002: Use Embedded Tesseract and Apache Tika for Optical Character Recognition
 
 > **Status:** Accepted  
-> **Date:** 2025-07-14  
+> **Date:** 2026-09-27  
 > **Deciders:** Engineering team
 
 ## Context
 
-OCR extraction is the core feature of the application. We need to choose between an open-source, self-hosted OCR engine and a cloud-based OCR API.
-
-Supported file types: PDF, PNG, JPG, JPEG, TIFF (up to 20 MB).
+Document text extraction constitutes the primary pipeline capability. We evaluated open-source self-hosted OCR engines alongside commercial cloud APIs for processing multi-format inputs (PDF, PNG, JPG, JPEG, TIFF up to 20 MB).
 
 ## Options Considered
 
-**Option A: Tesseract 4 + Apache Tika (open-source, embedded)**
-- Pros: No per-call cost; no external dependency at runtime; data stays on-premises (important for OQ-4 compliance); works offline; `tess4j` (Java wrapper) is mature
-- Cons: Lower accuracy than cloud APIs on complex layouts; requires Tesseract binary installed in the deployment environment; PDF handling requires PDFBox or Tika
-- Effort: Medium (Docker base image must include Tesseract)
+**Option A: Embedded Tesseract CLI + Apache Tika**
+- Pros: Zero per-call execution cost; complete on-premises data residency; fully operational in air-gapped environments; mature ecosystem for Linux and macOS environments
+- Cons: System runtime requires Tesseract binary installation
+- Effort: Medium
 
 **Option B: Google Cloud Vision API**
-- Pros: Very high accuracy; handles complex layouts, tables, handwriting; managed service
-- Cons: Per-call cost ($1.50/1000 pages); sends document content to Google (data residency risk); requires Google Cloud account and API key; network latency per request
-- Effort: Low (REST API call)
+- Pros: High extraction fidelity across degraded scans and handwritten text
+- Cons: Recurring usage fees per thousand pages; requires external network connectivity and third-party credentials; transfers document data off-premises
+- Effort: Low
 
 **Option C: AWS Textract**
-- Pros: High accuracy; structured data extraction (tables, forms); AWS-native
-- Cons: Per-page cost; AWS vendor lock-in; data leaves the deployment environment
-- Effort: Low (SDK call)
+- Pros: Structured table and form key-value extraction
+- Cons: Per-page pricing; platform lock-in; requires cloud data egress
+- Effort: Low
 
 ## Decision
 
-**Option A — Tesseract 4 + Apache Tika.**
+**Option A — Tesseract 5 with Apache Tika.**
 
-Apache Tika handles PDF → image conversion and multi-format file parsing. Tess4j wraps Tesseract 4 for Java. The Dockerfile will include `apt-get install tesseract-ocr`.
-
-If accuracy requirements change after v1, the `OcrEngine` interface allows swapping the implementation without changing the service layer (Strategy pattern).
+Apache Tika manages multi-format MIME detection, PDF page splitting, and metadata extraction. The `TesseractOcrEngine` implementation invokes the native Tesseract engine with automated DPI enhancement and TSV confidence thresholding. The system encapsulates extraction behind the `OcrEngine` interface.
 
 ## Consequences
 
 ### Positive
-- Zero per-call cost; suitable for high-volume usage
-- Document content does not leave the deployment environment (addresses OQ-4)
-- `OcrEngine` interface makes the provider swappable
+- Zero recurring API billing costs for document processing
+- Strict data residency: document text remains exclusively inside the host infrastructure
+- Clean pluggability via the `OcrEngine` strategy interface enables future engine additions
+- Verified across automated unit readability tests and end-to-end upload scenarios
 
 ### Negative
-- Accuracy on low-quality scans or complex layouts may be lower than cloud APIs
-- Tesseract binary must be present in the Docker image (adds ~100 MB to image size)
-- Language packs must be pre-installed (English only for v1)
+- Deployment containers and developer machines require local Tesseract binary installation
 
 ### Neutral
-- PDFBox is already a Tika dependency — no extra library needed for PDF support
+- Apache Tika dependencies bundle PDFBox, providing out-of-the-box PDF rendering without auxiliary libraries

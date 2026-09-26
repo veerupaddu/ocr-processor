@@ -1,53 +1,59 @@
 # Architecture: ocr-processor
 
-> **Status:** 🟢 Approved  
+> **Status:** 🟢 Approved / Implemented  
 > **Phase:** 2 of 6  
-> **Last Updated:** 2025-07-14
+> **Last Updated:** 2026-09-27
 
 ---
 
 ## Overview
 
-`ocr-processor` is a monolithic Spring Boot REST API with a server-rendered Thymeleaf frontend. Authenticated users can register, log in, upload documents for OCR extraction, search extracted content, and receive LLM-generated summaries — all stored in PostgreSQL.
+`ocr-processor` is a monolithic Spring Boot REST API with a server-rendered Thymeleaf frontend. Authenticated users can register, log in, upload documents for OCR extraction, search extracted content, and receive LLM-generated summaries (powered by DeepSeek or OpenAI via Spring AI) — all stored in PostgreSQL. The system integrates an interactive, in-app **Test Console** allowing developers and QA engineers to trigger unit, integration, and end-to-end suites directly from the browser with live execution evidence and functional requirement coverage.
 
 ---
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        Browser (Client)                     │
-│          Thymeleaf-rendered HTML + minimal JS               │
-└────────────────────────┬────────────────────────────────────┘
-                         │ HTTPS
-                         ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Spring Boot Application                   │
-│                                                             │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────────┐  │
-│  │  Security   │  │  Controller  │  │  Global Exception │  │
-│  │  Filter     │→ │  Layer       │→ │  Handler          │  │
-│  │  (JWT)      │  │  (REST +     │  │                   │  │
-│  └─────────────┘  │   Thymeleaf) │  └───────────────────┘  │
-│                   └──────┬───────┘                         │
-│                          ▼                                  │
-│                   ┌──────────────┐                          │
-│                   │  Service     │                          │
-│                   │  Layer       │                          │
-│                   └──┬───┬───┬───┘                          │
-│                      │   │   │                              │
-│          ┌───────────┘   │   └────────────────┐            │
-│          ▼               ▼                    ▼            │
-│  ┌───────────────┐ ┌──────────┐  ┌─────────────────────┐  │
-│  │ Repository    │ │ OCR      │  │ LLM Client          │  │
-│  │ Layer (JPA)   │ │ Engine   │  │ (OpenAI/watsonx)    │  │
-│  └───────┬───────┘ │(Tesseract│  └──────────┬──────────┘  │
-│          │         │ via Tika)│             │ External API │
-│          ▼         └──────────┘             │             │
-│  ┌───────────────┐                          │             │
-│  │  PostgreSQL   │◄─────────────────────────┘             │
-│  └───────────────┘                                        │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                            Browser (Client)                             │
+│       Thymeleaf HTML + CSS + JS (Search, Create, Tests Tabs)            │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ HTTPS / JWT Cookie
+                                     ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         Spring Boot Application                         │
+│                                                                         │
+│  ┌─────────────┐  ┌───────────────────────────────┐ ┌────────────────┐  │
+│  │  Security   │  │       Controller Layer        │ │ Global Exception│ │
+│  │  Filter     │→ │  • AuthController             │ │ Handler        │  │
+│  │  (JWT)      │  │  • HomeController             │ └────────────────┘  │
+│  └─────────────┘  │  • OcrController              │                     │
+│                   │  • TestConsoleController      │                     │
+│                   └───────────────┬───────────────┘                     │
+│                                   ▼                                     │
+│                   ┌───────────────────────────────┐                     │
+│                   │         Service Layer         │                     │
+│                   │  • UserService                │                     │
+│                   │  • OcrService                 │                     │
+│                   │  • TesseractOcrEngine         │                     │
+│                   │  • SpringAiLlmService         │                     │
+│                   │  • TestConsoleService         │                     │
+│                   └───┬───────┬───────┬───────┬───┘                     │
+│                       │       │       │       │                         │
+│           ┌───────────┘       │       │       └───────────┐             │
+│           ▼                   ▼       ▼                   ▼             │
+│  ┌────────────────┐ ┌──────────┐ ┌─────────────┐ ┌───────────────────┐  │
+│  │ Repository     │ │ Tesseract│ │ LLM Client  │ │ Test Process      │  │
+│  │ Layer (JPA)    │ │ Engine   │ │ (DeepSeek / │ │ Orchestrator      │  │
+│  └────────┬───────┘ │(CLI via  │ │  OpenAI)    │ │ (Maven + Pytest + │  │
+│           │         │ Tika)    │ └──────┬──────┘ │  Selenium Headless│  │
+│           ▼         └──────────┘        │        └───────────────────┘  │
+│  ┌────────────────┐                     ▼                               │
+│  │   PostgreSQL   │◄────────────────────┘                               │
+│  │ (FTS TSVECTOR) │                                                     │
+│  └────────────────┘                                                     │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -57,19 +63,21 @@
 ### 1. Security Filter (Spring Security + JWT)
 - Intercepts every request before it reaches a controller
 - Validates JWT from HTTP-only cookie
-- Populates `SecurityContext` with authenticated user
+- Populates `SecurityContext` with authenticated user identity
 - Passes `/login`, `/register`, and static assets without auth
 
 ### 2. Controller Layer
 - **AuthController** — `/login`, `/logout`, `/register`, `/profile/change-password`
-- **HomeController** — `/home` (serves Search + Create tabs via Thymeleaf)
+- **HomeController** — `/home` (serves Search, Create, and Tests tabs via Thymeleaf)
 - **OcrController** — `/api/v1/ocr/**` (upload, extract, search, detail, retry-summary)
+- **TestConsoleController** — `/api/v1/tests/**` (suite execution, status queries, screenshot delivery)
 
 ### 3. Service Layer
 - **UserService** — registration, login, password change, account lockout
 - **OcrService** — upload handling, file validation, status lifecycle management
 - **TesseractOcrEngine** — delegates to Apache Tika + Tesseract for text extraction
-- **LlmService** — calls configured LLM provider, handles truncation and retries
+- **SpringAiLlmService** — calls configured LLM provider (DeepSeek / OpenAI), handles prompt formatting, truncation bounds, and retries
+- **TestConsoleService** — parses `test-catalog.json`, manages asynchronous background suite runs, executes Maven Surefire / Pytest processes, extracts triple-fold evidence, and formats root-cause diagnostics
 
 ### 4. Repository Layer (Spring Data JPA)
 - **UserRepository** — CRUD + username/email uniqueness queries
@@ -78,7 +86,7 @@
 ### 5. Database — PostgreSQL 16
 - `users` table — account data, lockout tracking
 - `ocr_records` table — document metadata, extracted text, LLM summary
-- Full-text search via PostgreSQL `tsvector` / `GIN` index on `extracted_text` + `summary`
+- Full-text search via PostgreSQL `tsvector` / `GIN` index on `document_name`, `extracted_text`, and `summary`
 
 ---
 
@@ -89,16 +97,16 @@
 | Language | Java | 21 | Current LTS; virtual threads available |
 | Framework | Spring Boot | 3.3.x | Industry standard; rich ecosystem |
 | Build | Maven | 3.9.x | Widely adopted; good CI integration |
-| Frontend | Thymeleaf | 3.1.x | Server-rendered; no separate SPA build pipeline needed for v1 |
+| Frontend | Thymeleaf | 3.1.x | Server-rendered templates; unified deployment package |
 | Security | Spring Security + JJWT | 0.12.x | Native Spring integration; JWT HTTP-only cookie |
 | ORM | Spring Data JPA + Hibernate | 6.x | Standard JPA; query derivation |
-| Database | PostgreSQL | 16 | Production-grade RDBMS; native full-text search |
-| OCR | Apache Tika + Tesseract4J | 2.x / 1.x | Open-source; no per-call API cost |
-| LLM | Spring AI (OpenAI adapter) | 1.0.x | Pluggable; swap provider via config |
-| Testing (Java) | JUnit 5 + Mockito + Testcontainers | — | Standard Spring Boot test stack |
-| Testing (Python) | pytest + requests | 8.x / 2.x | Lightweight E2E layer |
-| CI | GitHub Actions | — | Native GitHub integration |
-| Containerisation | Docker Compose (dev) | — | Local PostgreSQL + app |
+| Database | PostgreSQL | 16 | Production-grade RDBMS; native TSVECTOR full-text search with GIN indexing |
+| OCR | Apache Tika + Tesseract CLI | 2.x / 5.x | Open-source; zero per-call execution cost |
+| LLM | Spring AI (OpenAI & DeepSeek compatible) | 1.0.x | Pluggable ChatClient; provider configurable via properties |
+| Testing (Java) | JUnit 5 + Mockito + Testcontainers | 5.x / 1.19.x | Standard Spring Boot unit and integration test stack |
+| Testing (E2E & UI) | Python pytest + Selenium WebDriver | 8.x / 4.x | Real browser journeys in Chrome headless with automatic screenshot capture |
+| CI | GitHub Actions | — | Native GitHub automation for Java and Python suites |
+| Containerisation | Docker Compose (dev) | — | Local PostgreSQL orchestration |
 
 ---
 
@@ -149,21 +157,48 @@ Browser renders result list
 
 ---
 
+## Request Flow — In-App Test Console Execution
+
+```
+Browser (Tests Tab)
+  │ POST /api/v1/tests/{suite}/run  (optional body: {"cases": ["Id1", "Id2"]})
+  ▼
+JwtAuthFilter → validates JWT cookie
+  ▼
+TestConsoleController.runSuite(suite, request)
+  ▼
+TestConsoleService.triggerSuiteRun(suite, caseIds)
+  ├─ validates no other suite is actively executing
+  ├─ transitions suite status to RUNNING
+  ├─ spawns background execution thread:
+  │    ├─ Unit / Integration: runs 'mvn test' targeting selected test methods
+  │    ├─ End-to-End: runs 'pytest' targeting selected Selenium & API node IDs
+  │    ├─ parses Surefire / Pytest JUnit XML reports as cases complete
+  │    ├─ extracts triple-fold evidence (Executed, Validated, Observed)
+  │    └─ updates case state, duration, and error diagnostics in memory
+  ▼
+Controller immediately returns 202 Accepted with current test suite snapshot
+  ▼
+Browser polls GET /api/v1/tests every second and renders live results into the two-row table
+```
+
+---
+
 ## Security Model
 
 | Concern | Approach |
 |---|---|
 | Authentication | JWT stored in `HttpOnly; Secure; SameSite=Strict` cookie |
 | Password storage | bcrypt, cost factor 12 |
-| Account lockout | 5 failed attempts → 15-minute lock (tracked in DB) |
+| Account lockout | 5 failed attempts triggers 15-minute lock (tracked in DB) |
 | Authorisation | All OCR data queries filtered by `userId` from JWT |
-| API key storage | Environment variables only (`LLM_API_KEY`); never in code or config files committed to repo |
-| Input validation | Jakarta Bean Validation on all DTOs; parameterised JPA queries (no raw SQL) |
-| CSRF | Disabled for REST endpoints; Thymeleaf form CSRF tokens enabled for HTML forms |
+| API key storage | Environment variables (`LLM_API_KEY`, `JWT_SECRET`) |
+| Input validation | Jakarta Bean Validation on all DTOs; parameterised JPA queries |
+| CSRF | Thymeleaf form CSRF tokens enabled for HTML forms; REST endpoints protected by SameSite cookie |
 
 ---
 
-## Deployment (v1 — Local / Single Server)
+## Deployment (Local / Single Server)
 
 ```
 docker-compose up
@@ -186,8 +221,8 @@ JWT_SECRET
 
 | ADR | Decision | Status |
 |---|---|---|
-| [ADR-001](adr/ADR-001-frontend-thymeleaf.md) | Use Thymeleaf (server-rendered) over SPA for v1 | Accepted |
-| [ADR-002](adr/ADR-002-ocr-tesseract.md) | Use Tesseract + Apache Tika over cloud OCR API | Accepted |
-| [ADR-003](adr/ADR-003-llm-spring-ai.md) | Use Spring AI with OpenAI adapter for LLM integration | Accepted |
-| [ADR-004](adr/ADR-004-auth-jwt-cookie.md) | Store JWT in HTTP-only cookie, not Authorization header | Accepted |
-| [ADR-005](adr/ADR-005-search-postgres-fts.md) | Use PostgreSQL full-text search over Elasticsearch | Accepted |
+| [ADR-001](adr/ADR-001-frontend-thymeleaf.md) | Use Thymeleaf server-rendered templates for web interface | Accepted |
+| [ADR-002](adr/ADR-002-ocr-tesseract.md) | Use Tesseract 5 with Apache Tika for embedded OCR | Accepted |
+| [ADR-003](adr/ADR-003-llm-spring-ai.md) | Use Spring AI with OpenAI and DeepSeek compatibility | Accepted |
+| [ADR-004](adr/ADR-004-auth-jwt-cookie.md) | Store JWT in HTTP-only cookie | Accepted |
+| [ADR-005](adr/ADR-005-search-postgres-fts.md) | Use PostgreSQL TSVECTOR full-text search with GIN index | Accepted |

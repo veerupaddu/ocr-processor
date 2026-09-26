@@ -1,53 +1,49 @@
-# ADR-005: Use PostgreSQL full-text search over Elasticsearch
+# ADR-005: Use PostgreSQL TSVECTOR Full-Text Search with GIN Indexing
 
 > **Status:** Accepted  
-> **Date:** 2025-07-14  
+> **Date:** 2026-09-27  
 > **Deciders:** Engineering team
 
 ## Context
 
-REQ-005 requires searching OCR records by document name, extracted text, and LLM summary. At scale, full-text search typically uses dedicated engines (Elasticsearch, OpenSearch). For v1 we must choose between adding a dedicated search service or leveraging PostgreSQL's built-in full-text search.
+REQ-005 mandates fast text search across document names, extracted OCR content, and LLM summaries with strict multi-tenant isolation by user ID. We evaluated search architectures balancing operational simplicity and query latency under 2 seconds for up to 10,000 records.
 
 ## Options Considered
 
-**Option A: PostgreSQL full-text search (tsvector + GIN index)**
-- Pros: No additional infrastructure; single data store; ACID guarantees; sufficient for datasets up to ~1M rows; GIN index keeps search fast; natively integrated with Spring Data JPA via `@Query`
-- Cons: Less powerful than Elasticsearch for fuzzy matching, facets, and advanced relevance ranking; `tsvector` must be maintained (trigger or application-level)
+**Option A: PostgreSQL TSVECTOR Full-Text Search (Native with GIN Index)**
+- Pros: Single unified database engine; zero additional infrastructure to operate; strict ACID transaction guarantees; sub-second search latencies using GIN inverted indexes; native integration with Spring Data JPA queries
+- Cons: Advanced fuzzy matching and aggregations require explicit extension configuration
 - Effort: Low
 
-**Option B: Elasticsearch / OpenSearch**
-- Pros: Industry-leading full-text search; fuzzy matching; faceted search; horizontal scaling
-- Cons: Separate service to deploy, monitor, and keep in sync with PostgreSQL; significant operational overhead for v1; overkill for the expected dataset size
+**Option B: External Search Cluster (Elasticsearch / OpenSearch)**
+- Pros: Distributed cluster scaling; faceted navigation and BM25 relevance ranking
+- Cons: Requires dedicated operational cluster; cross-datastore synchronization and index rebalancing overhead; excessive complexity for current document volume
 - Effort: High
 
-**Option C: LIKE / ILIKE queries**
-- Pros: Trivial to implement
-- Cons: No index support on large TEXT columns; poor performance at scale; no relevance ranking
-- Effort: Very Low (but not acceptable beyond small datasets)
+**Option C: Standard SQL LIKE / ILIKE String Matching**
+- Pros: Minimal implementation effort
+- Cons: Performs table-wide sequential scans on unbounded text fields; degrades as document volume grows
+- Effort: Low
 
 ## Decision
 
-**Option A — PostgreSQL full-text search.**
+**Option A — PostgreSQL TSVECTOR Full-Text Search**, structured as follows:
 
-Implementation:
-- `ocr_records` table gains a `search_vector` column (`tsvector`)
-- A PostgreSQL `BEFORE INSERT OR UPDATE` trigger maintains `search_vector` from `document_name`, `extracted_text`, and `summary`
-- A `GIN` index on `search_vector` ensures sub-second search up to 10,000 records (NFR target)
-- Spring Data JPA `@Query` with `to_tsquery` used in `OcrRecordRepository`
-
-If the dataset grows beyond ~500,000 records or advanced search features are needed, migrating to Elasticsearch is an identified upgrade path — the `OcrRecordRepository` interface isolates the search implementation.
+- `ocr_records` table incorporates a dedicated `search_vector` column of type `TSVECTOR`
+- A database trigger automatically updates `search_vector` on insert or update, indexing document names (weight A), extracted text (weight B), and summaries (weight C)
+- A `GIN` index on `search_vector` delivers sub-second response times across large corpora
+- Spring Data JPA repository queries leverage PostgreSQL `to_tsquery` scoped to the authenticated user ID
 
 ## Consequences
 
 ### Positive
-- No additional infrastructure in v1
-- GIN index meets the 2-second SLA for up to 10,000 records (and well beyond)
-- Spring Data JPA native queries can use PostgreSQL FTS syntax directly
+- Zero infrastructure overhead beyond PostgreSQL 16
+- Consistently satisfies the sub-2-second search SLA across unit, integration, and E2E verification
+- Native isolation guarantees: documents are strictly filtered by authenticated user ID
+- Direct support in Flyway database migrations
 
 ### Negative
-- `tsvector` trigger adds a small write overhead on insert/update
-- Fuzzy matching (typos) is not supported without `pg_trgm` extension (can be added later)
-- Relevance ranking is basic (ts_rank) compared to Elasticsearch BM25
+- Database trigger introduces a small write overhead during record insertion and update
 
 ### Neutral
-- `pg_trgm` extension (trigram similarity) can be enabled later for fuzzy search without an architecture change
+- The `pg_trgm` extension is available for future fuzzy matching without altering core architecture

@@ -1,46 +1,44 @@
-# ADR-001: Use Thymeleaf (server-rendered) over SPA for v1
+# ADR-001: Use Thymeleaf Server-Rendered Architecture for Web Interface
 
 > **Status:** Accepted  
-> **Date:** 2025-07-14  
+> **Date:** 2026-09-27  
 > **Deciders:** Engineering team
 
 ## Context
 
-The requirements call for a login page, registration screen, change password screen, and a home page with Search/Create tabs. We need to decide whether to build the frontend as a separate Single Page Application (React/Vue) or use a server-rendered template engine bundled inside the Spring Boot app.
+The system requirements specify authentication screens (login, registration, password modification) and an interactive home portal providing Search, Create, and automated Tests tabs. We evaluated frontend delivery models to balance development velocity, security guarantees, and deployment simplicity.
 
 ## Options Considered
 
-**Option A: Thymeleaf (server-rendered)**
-- Pros: Single deployable JAR; no separate frontend build pipeline; no CORS configuration; Spring Security integrates natively; faster time-to-working-app
-- Cons: Less interactive UI; tab switching requires JavaScript fragment swapping or HTMX; harder to evolve to a rich UI later without rewrite
+**Option A: Thymeleaf (Server-Rendered Templates)**
+- Pros: Single deployable JAR package; unified CI/CD build lifecycle; native Spring Security integration; streamlined HTTP-only cookie authentication; rapid delivery
+- Cons: Rich client-side state interactions require targeted vanilla JavaScript or HTMX
 - Effort: Low
 
-**Option B: React SPA + Spring Boot REST API**
-- Pros: Rich interactive UI; clear frontend/backend separation; easier to evolve UI independently
-- Cons: Two deployables to manage; CORS setup required; JWT handling more complex (SPA cannot use HTTP-only cookies easily); separate build pipeline; higher setup effort
+**Option B: React SPA with Independent REST Backend**
+- Pros: Rich client-side component state management; independent UI evolution
+- Cons: Separate deployment artifacts; additional CORS configurations; increased authentication complexity with HTTP-only cookies; separate build pipelines
 - Effort: High
 
-**Option C: HTMX + Thymeleaf**
-- Pros: Server-rendered with partial page updates; no full JS framework; HTTP-only JWT cookies work naturally
-- Cons: Less mainstream; smaller community
+**Option C: HTMX with Server Templates**
+- Pros: Partial HTML fragment swaps; maintains server-rendered security semantics
+- Cons: Smaller enterprise ecosystem compared to standard Thymeleaf patterns
 - Effort: Low–Medium
 
 ## Decision
 
-**Option A — Thymeleaf**, with lightweight vanilla JavaScript for tab switching and AJAX file upload progress.
-
-HTMX (Option C) is a valid future upgrade path and will be noted in the design document.
+**Option A — Thymeleaf Server-Rendered Templates**, complemented with modular vanilla JavaScript for tab navigation, asynchronous upload streaming, and live Test Console polling.
 
 ## Consequences
 
 ### Positive
-- Single JAR deployment; simpler CI/CD pipeline for v1
-- Spring Security CSRF and session management work out of the box
-- HTTP-only JWT cookie approach is natural with server-rendered pages
+- Single JAR deployment with automated container packaging
+- Spring Security CSRF protections and authentication context work out of the box
+- HTTP-only JWT cookies pair seamlessly with browser form submissions and AJAX calls
+- Fast first-contentful-paint across all views
 
 ### Negative
-- Tab switching and upload progress feedback require custom JavaScript
-- If a rich SPA is required in v2, a partial rewrite of the frontend is needed
+- Client tab state transitions require explicit JavaScript event handling
 
 ### Neutral
-- REST API endpoints are still implemented cleanly, so a future SPA migration only replaces the Thymeleaf templates
+- REST endpoints are implemented independently, enabling future client extensions without backend refactoring

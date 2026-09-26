@@ -1,12 +1,12 @@
 # Requirements Document: ocr-processor
 
-> **Status:** 🟡 Draft  
+> **Status:** 🟢 Approved / Implemented  
 > **Phase:** 1 of 6  
-> **Last Updated:** 2025-07-14
+> **Last Updated:** 2026-09-27
 
 ## Overview
 
-`ocr-processor` is a Spring Boot REST API + web application that allows authenticated users to upload documents (images/PDFs), extract text via OCR, store results in PostgreSQL, and use an LLM to summarise the extracted content. A home page with **Search** and **Create** tabs serves as the primary interface.
+`ocr-processor` is a Spring Boot REST API + web application that allows authenticated users to upload documents (images/PDFs), extract text via OCR, store results in PostgreSQL, and use an LLM (such as DeepSeek or OpenAI) to summarise the extracted content. A home page with **Search**, **Create**, and **Tests** tabs serves as the primary interface.
 
 ---
 
@@ -40,7 +40,7 @@ As a guest, I want to register an account with a username and password, so that 
 | REQ-001-05 | WHEN a guest submits a password shorter than 8 characters THEN the system SHALL display: "Password must be at least 8 characters" |
 | REQ-001-06 | WHEN a guest submits mismatched password and confirm password THEN the system SHALL display: "Passwords do not match" |
 | REQ-001-07 | WHEN a guest submits an invalid email format THEN the system SHALL display: "Invalid email address" |
-| REQ-001-08 | WHEN registration is successful THEN the system SHALL store the password as a bcrypt hash (never plaintext) |
+| REQ-001-08 | WHEN registration is successful THEN the system SHALL store the password as a bcrypt hash |
 | REQ-001-09 | WHEN any required field is left blank THEN the system SHALL display a field-level validation error |
 
 **Edge Cases:**
@@ -63,7 +63,7 @@ As a registered user, I want to log in with my username and password, so that I 
 |---|---|
 | REQ-002-01 | WHEN a guest navigates to `/login` THEN the system SHALL display a login form with username and password fields |
 | REQ-002-02 | WHEN a guest submits valid credentials THEN the system SHALL authenticate the user and redirect to the home page (`/home`) |
-| REQ-002-03 | WHEN a guest submits invalid credentials THEN the system SHALL display: "Invalid username or password" (no hint as to which is wrong) |
+| REQ-002-03 | WHEN a guest submits invalid credentials THEN the system SHALL display the generic error: "Invalid username or password" |
 | REQ-002-04 | WHEN a guest leaves username or password blank THEN the system SHALL display a field-level validation error |
 | REQ-002-05 | WHEN authentication is successful THEN the system SHALL issue a JWT token with a configurable expiry (default 8 hours) |
 | REQ-002-06 | WHEN an unauthenticated user attempts to access a protected route THEN the system SHALL redirect to `/login` |
@@ -72,7 +72,7 @@ As a registered user, I want to log in with my username and password, so that I 
 
 **Edge Cases:**
 - Login SHALL be rate-limited to prevent brute-force attacks
-- JWT SHALL be stored in an HTTP-only cookie (not localStorage)
+- JWT SHALL be stored in an HTTP-only cookie
 
 ---
 
@@ -91,24 +91,25 @@ As a registered user, I want to change my password, so that I can maintain accou
 | REQ-003-04 | WHEN a user submits a new password shorter than 8 characters THEN the system SHALL display the validation error |
 | REQ-003-05 | WHEN new password and confirm new password do not match THEN the system SHALL display: "Passwords do not match" |
 | REQ-003-06 | WHEN the new password is identical to the current password THEN the system SHALL display: "New password must differ from current password" |
-| REQ-003-07 | IF a user is not authenticated THEN the system SHALL redirect to `/login` |
+| REQ-003-07 | WHEN an unauthenticated user visits the page THEN the system SHALL redirect to `/login` |
 
 ---
 
-### REQ-004: Home Page with Search and Create Tabs
+### REQ-004: Home Page with Search, Create, and Tests Tabs
 
 **User Story:**  
-As an authenticated user, I want a home page with Search and Create tabs, so that I can quickly navigate between finding existing records and uploading new ones.
+As an authenticated user, I want a home page with Search, Create, and Tests tabs, so that I can quickly navigate between finding existing records, uploading new documents, and running automated test suites.
 
 **Acceptance Criteria:**
 
 | ID | Requirement |
 |---|---|
-| REQ-004-01 | WHEN an authenticated user navigates to `/home` THEN the system SHALL display a home page with two tabs: **Search** (default active) and **Create** |
+| REQ-004-01 | WHEN an authenticated user navigates to `/home` THEN the system SHALL display a home page with three tabs: **Search** (default active), **Create**, and **Tests** |
 | REQ-004-02 | WHEN the user clicks the **Search** tab THEN the system SHALL display the search interface (REQ-005) without a full page reload |
 | REQ-004-03 | WHEN the user clicks the **Create** tab THEN the system SHALL display the OCR upload interface (REQ-006) without a full page reload |
-| REQ-004-04 | WHEN the home page loads THEN the system SHALL show a navigation bar with the logged-in username and a Logout button |
-| REQ-004-05 | WHEN the user clicks Logout THEN the system SHALL invalidate the session and redirect to `/login` |
+| REQ-004-04 | WHEN the user clicks the **Tests** tab THEN the system SHALL display the interactive Test Console (REQ-008) without a full page reload |
+| REQ-004-05 | WHEN the home page loads THEN the system SHALL show a navigation bar with the logged-in username and a Logout button |
+| REQ-004-06 | WHEN the user clicks Logout THEN the system SHALL invalidate the session and redirect to `/login` |
 
 ---
 
@@ -182,9 +183,45 @@ As an authenticated user, I want the system to automatically generate a summary 
 | REQ-007-07 | WHEN the user clicks **Retry Summary** THEN the system SHALL re-invoke the LLM and update the record |
 
 **LLM Integration:**
-- Provider: configurable via `application.yml` (default: OpenAI GPT-4o-mini)
-- API key: supplied via environment variable `LLM_API_KEY` (never hardcoded)
+- Provider: configurable via `application.yml` (default: OpenAI GPT-4o-mini; compatible with DeepSeek via OpenAI chat client endpoint)
+- API key: supplied via environment variable `LLM_API_KEY`
 - Prompt template: configurable
+
+---
+
+### REQ-008: In-App Automation Test Console
+
+**User Story:**  
+As a developer or QA engineer, I want an interactive Test Console directly inside the application, so that I can trigger automated test suites, inspect live execution evidence, diagnose root causes, and monitor functional coverage against requirements.
+
+**Acceptance Criteria:**
+
+| ID | Requirement |
+|---|---|
+| REQ-008-01 | WHEN the Tests tab is selected THEN the system SHALL present four dedicated sub-tabs: **Unit**, **Regression**, **End to end**, and **Coverage** |
+| REQ-008-02 | WHEN viewing any test suite THEN the system SHALL render all cataloged cases in a two-row responsive table showing case identifier, expected outcome, status, execution timings, and evidence |
+| REQ-008-03 | WHEN a suite Run or Run Selected action is triggered THEN the system SHALL execute the cases asynchronously in a background runner and stream progress updates to the UI |
+| REQ-008-04 | WHEN a test case completes THEN the system SHALL populate triple-fold evidence: **Executed** inputs, **Validated** assertions, and **Observed** outputs |
+| REQ-008-05 | WHEN a test case fails THEN the system SHALL sort the failure to the top of the suite and provide a **Details** modal showing the failure location, assertion difference, and suggested remediation |
+| REQ-008-06 | WHEN the **Coverage** sub-tab is opened THEN the system SHALL display functional requirement coverage bars for `REQ-001` through `REQ-007` with covered criteria counts and explanations for open edge cases |
+
+---
+
+## Requirement Traceability & Functional Coverage
+
+The embedded Test Console tracks automated verification against the acceptance criteria defined across `REQ-001` through `REQ-007`:
+
+| Requirement | Scope | Covered / Total | Coverage | Verified Capabilities | Open Edge Cases |
+|---|---|---|---|---|---|
+| **REQ-001 Registration** | Core Auth | 6 / 9 | 66.7% | Account creation, password matching, length checks, duplicate username & email rejection | Blank field validations, malformed email patterns, direct bcrypt hash inspection |
+| **REQ-002 Login** | Core Auth | 5 / 8 | 62.5% | Valid credentials, bad password handling, protected route redirects, lockout triggers, logout | Blank inputs, 8-hour token duration check, lockout error banner text |
+| **REQ-003 Change Password** | Profile | 5 / 7 | 71.4% | Valid password updates, current password verification, new password matching, reused password rejection | Unauthenticated form visit redirects, form field layout rendering |
+| **REQ-004 Home UI** | Navigation | 4 / 5 | 80.0% | Default Search tab, Create tab switching, Tests tab access, session invalidation on logout | Navbar username greeting display in browser |
+| **REQ-005 Search** | Discovery | 5 / 8 | 62.5% | Full-text query execution, multi-term matching, 200-character snippet previews, empty query listing, user data isolation | 2-second SLA against 10,000 records, 20-item pagination navigation, table row click routing |
+| **REQ-006 Upload & OCR** | Extraction | 7 / 8 | 87.5% | Multi-format upload, Tesseract text extraction, metadata storage, status lifecycle, default filename fallback, blank document handling | File uploads exceeding 20 MB rejection |
+| **REQ-007 LLM Summary** | AI Processing | 6 / 7 | 85.7% | Automatic LLM summarisation, preview card display, 10,000-character input truncation, empty text skip, summary status tracking, one-click retry | Browser UI Retry button click routing |
+| **Out of Scope for v1** | Future | 0 / 7 | 0.0% | Reserved for v2 (Admin panel, MFA, cloud storage, batch upload, email reset) | Scheduled for subsequent releases |
+| **Overall Functional Coverage** | **All Stories** | **38 / 52** | **73.1%** | **Core document processing, security, search, and testing pipelines** | **Specialized environment criteria** |
 
 ---
 
@@ -196,8 +233,8 @@ As an authenticated user, I want the system to automatically generate a summary 
 | **Performance** | OCR extraction SHALL complete within 30 seconds for files up to 20 MB |
 | **Security** | All endpoints except `/login` and `/register` SHALL require a valid JWT |
 | **Security** | Passwords SHALL be stored using bcrypt with a minimum cost factor of 12 |
-| **Security** | API keys and secrets SHALL be supplied via environment variables, never committed to source |
-| **Security** | All user data access SHALL be scoped to the authenticated user (no cross-user data leakage) |
+| **Security** | API keys and secrets SHALL be supplied via environment variables |
+| **Security** | All user data access SHALL be scoped to the authenticated user |
 | **Availability** | The application SHALL start and be ready to serve requests within 30 seconds |
 | **Scalability** | The application SHALL support at least 50 concurrent users in v1 |
 | **Auditability** | All OCR upload events SHALL be logged with user ID, timestamp, and file metadata |
@@ -237,21 +274,21 @@ As an authenticated user, I want the system to automatically generate a summary 
 
 ## Out of Scope (v1)
 
-- Admin panel / user management by admin
+- Admin panel and user management by administrators
 - Multi-factor authentication (MFA)
-- File storage in cloud (S3 etc.) — files processed in-memory in v1
+- Cloud file storage (S3 / GCS) — files are processed in-memory in v1
 - OCR language selection
-- Batch upload (multiple files at once)
+- Batch upload (multiple files concurrently)
 - Email notifications
 - Password reset via email
 
 ---
 
-## Open Questions
+## Resolved Architecture Decisions
 
-| # | Question | Owner |
-|---|---|---|
-| OQ-1 | Which OCR library to use — Tesseract (open-source) or a cloud API (Google Vision, AWS Textract)? | Architecture phase |
-| OQ-2 | Should the frontend be server-rendered (Thymeleaf) or a separate SPA (React)? | Architecture phase |
-| OQ-3 | Which LLM provider is preferred — OpenAI, Anthropic, or IBM watsonx? | Stakeholder |
-| OQ-4 | Are there any compliance/data-residency requirements for storing extracted text? | Stakeholder |
+| # | Question | Decision Reference | Resolution Summary |
+|---|---|---|---|
+| OQ-1 | OCR Engine selection | [ADR-002](../architecture/adr/ADR-002-ocr-tesseract.md) | Selected Tesseract 5 with Apache Tika for embedded processing and zero per-call cost |
+| OQ-2 | Frontend architecture | [ADR-001](../architecture/adr/ADR-001-frontend-thymeleaf.md) | Selected Thymeleaf server-rendered templates with vanilla JS for instant deployment and native security |
+| OQ-3 | LLM Provider integration | [ADR-003](../architecture/adr/ADR-003-llm-spring-ai.md) | Selected Spring AI ChatClient supporting DeepSeek and OpenAI through standard chat client configuration |
+| OQ-4 | Data security and storage | [ADR-004](../architecture/adr/ADR-004-auth-jwt-cookie.md) & [ADR-005](../architecture/adr/ADR-005-search-postgres-fts.md) | Selected PostgreSQL with native TSVECTOR search, GIN indexes, and HTTP-only cookie authentication |
